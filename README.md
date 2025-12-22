@@ -684,7 +684,7 @@ O componente CreateLabel é utilizado para exibir informações, textos de supor
 local MinhaLabel = MeuPainel:CreateLabel(MinhaAba, {
     Title = "Status do Servidor",
     Desc = "O servidor está operando normalmente com 15 players.",
-    Image = "[http://sua-url.com/imagem.png](http://sua-url.com/imagem.png)", -- Aceita URL ou ID do Roblox
+    Image = "http://sua-url.com/imagem.png", -- Aceita URL ou ID do Roblox
     imageGround = "medium", -- "min", "medium" ou "max"
     Color = Color3.fromRGB(255, 255, 255)
 })
