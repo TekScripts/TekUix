@@ -30,13 +30,12 @@ Tekscripts:FloatButtonEdit({
 Criação da janela principal (Window). Essencial para hospedar todos os outros componentes.
 
 ```lua
-local gui = Tekscripts.new({
-    Name = "MeuPainel",                  -- > String  | Título do painel
+local MeuPainel = Tekscripts.new({
+    Name = painel               -- > String  | Título do painel
     FloatText = "Abrir Painel",          -- > String  | Texto do botão flutuante
     startTab = "auto",                   -- > String  | Tab selecionada inicialmente
     iconId = "rbxassetid://105089076803454", -- > String  | ID do ícone da interface
-    Transparent = true,                  -- > Boolean | Define se o painel é transparente
-    WindowTransparency = 0.5,            -- > Number  | Nível de transparência (0 a 1)
+    Transparent = true,                  -- > Boolean | Define se o painel é transpartransparenflutuantesparency = 0.5,            -- > Number  | Nível de transparência (0 a 1)
     LoadScreen = true,                   -- > Boolean | Ativa sistema de carregamento
     Loading = { 
         Title = "TekScripts", 
@@ -53,7 +52,7 @@ local gui = Tekscripts.new({
 Cria uma nova seção lateral na interface.
 
 ```lua
-local MinhaAba = Tekscripts:CreateTab({
+local MinhaAba = MeuPainel:CreateTab({
     Title = "Minha Aba" -- > String
 })
 ```
@@ -78,7 +77,7 @@ local MinhaAba = Tekscripts:CreateTab({
 
 ### Exemplo de Uso
 ```lua
-local meuToggle = Tekscripts:CreateToggle(MinhaAba, {
+local meuToggle = MeuPainel:CreateToggle(MinhaAba, {
     Text = "Velocidade Máxima",
     Desc = "Aumenta a velocidade do personagem",
     Type = "Toggle",
@@ -111,7 +110,7 @@ meuToggle:SetState(true)
 
 ### Exemplo de Criação
 ```lua
-local MeuSlider = Tekscripts:CreateSlider(MinhaAba, {
+local MeuSlider = MeuPainel:CreateSlider(MinhaAba, {
     Text = "WalkSpeed",
     Min = 16,
     Max = 100,
@@ -140,7 +139,7 @@ local MeuSlider = Tekscripts:CreateSlider(MinhaAba, {
 
 ### Exemplo de Criação
 ```lua
-local logBox = Tekscripts:CreateTextBox(MinhaAba, {
+local logBox = MeuPainel:CreateTextBox(MinhaAba, {
     Text = "Console de Logs",
     Desc = "Histórico de eventos",
     Default = "Iniciando sistema...\n",
