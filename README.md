@@ -156,7 +156,7 @@ local logBox = MeuPainel:CreateTextBox(MinhaAba, {
 | :Clear() | Limpa todo o conteúdo do box. |
 | :Destroy() | Remove o componente. |
 
-## Componente: CreateBind
+## Componente: Bind
 
 O componente CreateBind permite que o usuário vincule uma tecla (Keycode) a uma função específica.
 
@@ -211,7 +211,7 @@ flightBind:SetKey(Enum.KeyCode.Z)
 > [!IMPORTANT]
 > O componente possui tratamento de erro interno. Caso o callback falhe, o botão de bind piscará em vermelho para indicar que a execução não foi concluída com sucesso.
 
-## Componente: CreateDropdown
+## Componente: Dropdown
 
 O componente CreateDropdown oferece uma lista de seleção única ou múltipla, com suporte a imagens e atualização dinâmica de itens.
 
@@ -278,7 +278,7 @@ local modDropdown = MeuPainel:CreateDropdown(MinhaAba, {
 > [!IMPORTANT]
 > O Dropdown possui ajuste automático de altura (AutomaticSize). No entanto, o limite de altura total é respeitado com base no MaxVisibleItems para não poluir a interface.
 
-## Componente: CreateDialog
+## Componente: Dialog
 
 O componente CreateDialog cria uma janela de alerta ou confirmação centralizada que sobrepõe toda a interface (modal), bloqueando a interação com o fundo até que uma ação seja tomada.
 
@@ -332,7 +332,7 @@ MeuPainel:CreateDialog({
 > [!IMPORTANT]
 > Diferente de outros componentes, o CreateDialog não requer um objeto "tab" como primeiro argumento, pois ele é criado diretamente no PlayerGui do usuário.
 
-## Componente: CreateInput
+## Componente: Input
 
 O componente CreateInput permite a entrada de texto ou números pelo usuário, com suporte a placeholders, descrições e sistema de bloqueio visual.
 
@@ -388,7 +388,7 @@ end)
 > [!IMPORTANT]
 > No modo "string", o callback só é disparado quando o usuário perde o foco do campo (pressionando Enter ou clicando fora). No modo "number", o callback é disparado a cada alteração de caractere.
 
-## Componente: CreateButton
+## Componente: Button
 
 O componente CreateButton cria um botão interativo padrão com suporte a animações de clique, controle de debounce (cooldown) e feedback visual de erros.
 
@@ -441,7 +441,7 @@ end)
 > [!IMPORTANT]
 > O CreateButton gerencia automaticamente a limpeza de memória através do método `:Destroy()`, desconectando eventos de MouseEnter, MouseLeave e Click para evitar vazamentos (memory leaks).
 
-## Componente: CreateFloatButton
+## Componente: FloatButton
 
 O componente CreateFloatButton cria um botão flutuante independente que permanece na tela, permitindo execução de funções rápidas. Ele possui suporte nativo para arrasto (drag) tanto em dispositivos Desktop quanto Mobile.
 
@@ -565,7 +565,7 @@ MeuPainel.Localization:SetLanguage("en")
 > O sistema de localização deve ser inicializado antes da criação dos componentes para que os textos sejam aplicados corretamente durante o carregamento da interface.
 se possível abaixo da inicialização.
 
-## Componente: CreateSection
+## Componente: Section
 
 O componente CreateSection permite agrupar múltiplos componentes em uma categoria expansível e colapsável, ideal para organizar interfaces com muitas funcionalidades.
 
@@ -622,7 +622,7 @@ end)
 > [!IMPORTANT]
 > Ao chamar o método `:Destroy()` em uma seção, a Tekscripts irá automaticamente chamar o método `:Destroy()` de cada componente que foi adicionado a ela via `AddComponent`, garantindo uma limpeza completa da memória.
 
-## Componente: CreateTabContainer
+## Componente: TabContainer
 
 O componente CreateTabContainer permite criar um sistema de sub-abas (Tab View) dentro de uma aba principal. É ideal para organizar grandes quantidades de conteúdo em categorias horizontais sem poluir a barra lateral principal.
 
@@ -675,7 +675,7 @@ Ao criar componentes para um `TabContainer`, você deve criá-los normalmente pa
 > [!IMPORTANT]
 > A primeira aba adicionada via `:AddTab()` será automaticamente definida como a aba ativa por padrão.
 
-## Componente: CreateLabel
+## Componente: Label
 
 O componente CreateLabel é utilizado para exibir informações, textos de suporte ou avisos, permitindo o uso de ícones locais ou externos com redimensionamento automático.
 
@@ -684,7 +684,7 @@ O componente CreateLabel é utilizado para exibir informações, textos de supor
 local MinhaLabel = MeuPainel:CreateLabel(MinhaAba, {
     Title = "Status do Servidor",
     Desc = "O servidor está operando normalmente com 15 players.",
-    Image = "http://sua-url.com/imagem.png", -- Aceita URL ou ID do Roblox
+    Image = "[http://sua-url.com/imagem.png](http://sua-url.com/imagem.png)", -- Aceita URL ou ID do Roblox
     imageGround = "medium", -- "min", "medium" ou "max"
     Color = Color3.fromRGB(255, 255, 255)
 })
