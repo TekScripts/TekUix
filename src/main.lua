@@ -5709,7 +5709,7 @@ function Tekscripts:CreateLabel(tab, options)
     uiPadding.PaddingLeft = UDim.new(0, pV)
     uiPadding.PaddingRight = UDim.new(0, pV)
 
-    -- 2. CONTAINER DE CONTEÚDO (Sempre Horizontal para manter o ícone na esquerda)
+    -- 2. CONTAINER DE CONTEÚDO
     local contentFrame = Instance.new("Frame")
     contentFrame.Size = UDim2.new(1, 0, 0, 0)
     contentFrame.BackgroundTransparency = 1
@@ -5720,15 +5720,9 @@ function Tekscripts:CreateLabel(tab, options)
     horizontalLayout.FillDirection = Enum.FillDirection.Horizontal
     horizontalLayout.SortOrder = Enum.SortOrder.LayoutOrder
     horizontalLayout.Padding = UDim.new(0, 12)
-    
-    -- O SEGREDO: Centraliza a Imagem na altura total do Box
-    -- Se for min, fica no topo. Se for medium/max, centraliza no meio da altura.
     horizontalLayout.VerticalAlignment = (mode == "min" and Enum.VerticalAlignment.Top or Enum.VerticalAlignment.Center)
 
-    -- 3. ELEMENTOS DINÂMICOS
-    local imageLabel = nil
-    local descLabel = nil
-    
+    -- 3. CONTAINER DE TEXTO (Título e Descrição)
     local textContainer = Instance.new("Frame")
     textContainer.Name = "TextContainer"
     textContainer.AutomaticSize = Enum.AutomaticSize.Y
@@ -5739,9 +5733,10 @@ function Tekscripts:CreateLabel(tab, options)
 
     local verticalLayout = Instance.new("UIListLayout", textContainer)
     verticalLayout.Padding = UDim.new(0, 2)
-    -- Centraliza o texto verticalmente também para alinhar com a imagem grande
+    verticalLayout.SortOrder = Enum.SortOrder.LayoutOrder -- Garante a ordem correta
     verticalLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 
+    -- TÍTULO (Sempre no topo)
     local titleLabel = Instance.new("TextLabel")
     titleLabel.Name = "Title"
     titleLabel.Text = tostring(options.Title)
@@ -5753,6 +5748,7 @@ function Tekscripts:CreateLabel(tab, options)
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.Size = UDim2.new(1, 0, 0, 0)
     titleLabel.AutomaticSize = Enum.AutomaticSize.Y
+    titleLabel.LayoutOrder = 1 -- Define como primeiro elemento
     titleLabel.Parent = textContainer
 
     if not options.Color then
@@ -5761,6 +5757,8 @@ function Tekscripts:CreateLabel(tab, options)
 
     -- API
     local component = {}
+    local imageLabel = nil
+    local descLabel = nil
 
     function component:SetText(val)
         titleLabel.Text = tostring(val or "")
@@ -5783,6 +5781,7 @@ function Tekscripts:CreateLabel(tab, options)
             descLabel.TextXAlignment = Enum.TextXAlignment.Left
             descLabel.Size = UDim2.new(1, 0, 0, 0)
             descLabel.AutomaticSize = Enum.AutomaticSize.Y
+            descLabel.LayoutOrder = 2 -- Define como segundo elemento (abaixo do título)
             descLabel.Parent = textContainer
             descLabel.TextColor3 = Color3.fromRGB(170, 170, 175) 
         end
@@ -5803,7 +5802,7 @@ function Tekscripts:CreateLabel(tab, options)
             imageLabel.Size = UDim2.new(0, IMAGE_SIZE, 0, IMAGE_SIZE) 
             imageLabel.BackgroundTransparency = 1
             imageLabel.ScaleType = Enum.ScaleType.Fit
-            imageLabel.LayoutOrder = 1
+            imageLabel.LayoutOrder = 1 -- Ícone à esquerda
             imageLabel.Parent = contentFrame
             
             local imgCorner = Instance.new("UICorner", imageLabel)
@@ -5824,6 +5823,7 @@ function Tekscripts:CreateLabel(tab, options)
         outerBox.Visible = state
     end
 
+    -- Inicialização
     if options.Desc then component:SetDescription(options.Desc) end
     if options.Image then component:SetImage(options.Image) end
 
