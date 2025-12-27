@@ -1,4 +1,3 @@
-
 -- >!strict
 local Tekscripts = {}
 Tekscripts.__index = Tekscripts
@@ -1466,7 +1465,7 @@ function Tekscripts:CreateTab(options: TabOptions)
 
     local tab = Tab.new(title, self.TabContentContainer)
     tab._parentRef = self
-    tab.IconId = iconId -- > Armazena o ID no objeto para uso no botão
+    tab.IconId = iconId -- > Persistência do ID para o botão
     self.Tabs[title] = tab
 
     -- > > Cria o botão da aba no container lateral
@@ -1480,7 +1479,7 @@ function Tekscripts:CreateTab(options: TabOptions)
     -- > > Atualiza label de "sem abas"
     self.NoTabsLabel.Visible = next(self.Tabs) == nil
 
-    -- > > Método Destroy da aba com limpeza de cache
+    -- > > Método Destroy da aba com limpeza profunda de cache
     function tab:Destroy()
         if self._destroyed then return end
         self._destroyed = true
@@ -1518,7 +1517,7 @@ function Tekscripts:CreateTab(options: TabOptions)
     return tab
 end
 
--- > > Cria e configura o botão visual compacto e auto-adaptável
+-- > > Cria o botão visual com layout inteligente e economia de espaço
 function Tab:_CreateTabButton(parentWindow)
     local hasIcon = self.IconId ~= nil
     
@@ -1526,39 +1525,32 @@ function Tab:_CreateTabButton(parentWindow)
     self.Button = button
     button.Name = self.Name
     button.Text = "" 
-    -- > AutomaticSize em XY faz o box "abraçar" o conteúdo sem sobras
-    button.Size = UDim2.new(0, 0, 0, DESIGN.TabButtonHeight)
-    button.AutomaticSize = Enum.AutomaticSize.XY
+    -- > Ocupa a largura do container lateral (- margem) e altura mínima adaptável
+    button.Size = UDim2.new(1, -6, 0, DESIGN.TabButtonHeight or 28)
+    button.AutomaticSize = Enum.AutomaticSize.Y 
     button.BackgroundColor3 = DESIGN.TabInactiveColor
     button.BorderSizePixel = 0
     button.AutoButtonColor = false
     button.ZIndex = 3
     button.Parent = parentWindow.TabContainer
 
-    -- > Mantém apenas a altura mínima para consistência visual
-    local sizeConstraint = Instance.new("UISizeConstraint")
-    sizeConstraint.MinSize = Vector2.new(0, DESIGN.TabButtonHeight)
-    -- > MaxSize impede que o texto longo demais estique a UI lateral infinitamente
-    sizeConstraint.MaxSize = Vector2.new(parentWindow.TabContainer.AbsoluteSize.X - 10, 9000)
-    sizeConstraint.Parent = button
-
-    -- > Layout horizontal compacto
+    -- > Layout horizontal: Se não tem ícone, o padding é 0 para o texto encostar no limite do botão
     local layout = Instance.new("UIListLayout")
     layout.FillDirection = Enum.FillDirection.Horizontal
-    layout.Padding = UDim.new(0, hasIcon and 6 or 0)
+    layout.Padding = UDim.new(0, hasIcon and 8 or 0)
     layout.VerticalAlignment = Enum.VerticalAlignment.Center
     layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
     layout.Parent = button
 
-    -- > Padding interno mínimo para organização
+    -- > Padding interno: Mantém o conteúdo respirando sem vazar
     local padding = Instance.new("UIPadding")
-    padding.PaddingLeft = UDim.new(0, 8)
-    padding.PaddingRight = UDim.new(0, 8)
-    padding.PaddingTop = UDim.new(0, 2)
-    padding.PaddingBottom = UDim.new(0, 2)
+    padding.PaddingLeft = UDim.new(0, 10)
+    padding.PaddingRight = UDim.new(0, 10)
+    padding.PaddingTop = UDim.new(0, 4)
+    padding.PaddingBottom = UDim.new(0, 4)
     padding.Parent = button
 
-    -- > Ícone (Ocupa espaço apenas se existir)
+    -- > Criação do Ícone: Só ocupa memória e espaço se existir
     if hasIcon then
         local iconImage = Instance.new("ImageLabel")
         iconImage.Name = "Icon"
@@ -1570,14 +1562,14 @@ function Tab:_CreateTabButton(parentWindow)
         RegisterThemeItem("ComponentTextColor", iconImage, "ImageColor3")
     end
 
-    -- > Label de Texto Compacta
+    -- > Texto Adaptável: Ocupa o restante do espaço mas quebra linha se precisar
     local textLabel = Instance.new("TextLabel")
     textLabel.Name = "Title"
     textLabel.BackgroundTransparency = 1
     textLabel.Text = self.Name
-    -- > Tamanho 0,0 com AutomaticSize garante que a label use o mínimo de espaço
-    textLabel.Size = UDim2.new(0, 0, 0, 0) 
-    textLabel.AutomaticSize = Enum.AutomaticSize.XY
+    -- > Se tem ícone, subtrai o tamanho do ícone + padding do layout
+    textLabel.Size = UDim2.new(1, hasIcon and -24 or 0, 0, 0) 
+    textLabel.AutomaticSize = Enum.AutomaticSize.Y
     textLabel.TextColor3 = DESIGN.ComponentTextColor
     textLabel.Font = Enum.Font.Roboto
     textLabel.TextSize = 14
@@ -1587,24 +1579,26 @@ function Tab:_CreateTabButton(parentWindow)
     textLabel.Parent = button
     RegisterThemeItem("ComponentTextColor", textLabel, "TextColor3")
 
-    -- > Força o texto a quebrar se atingir o limite da aba, permitindo até 2 linhas
+    -- > Limita a altura do texto (Consistência de cache visual)
     local textConstraint = Instance.new("UISizeConstraint")
-    textConstraint.MaxSize = Vector2.new(parentWindow.TabContainer.AbsoluteSize.X - (hasIcon and 40 or 20), 34)
+    textConstraint.MaxSize = Vector2.new(9000, 36) -- > 2 linhas no máximo
     textConstraint.Parent = textLabel
 
     addRoundedCorners(button, DESIGN.CornerRadius)
 
-    -- > Feedback de Interação
+    -- > Feedback de Hover
     addHoverEffect(button, DESIGN.TabInactiveColor, DESIGN.ComponentHoverColor, function()
         return parentWindow.CurrentTab ~= self
     end)
 
+    -- > Persistência de clique
     table.insert(self._connections, button.MouseButton1Click:Connect(function()
         if not parentWindow.Blocked then
             parentWindow:SetActiveTab(self)
         end
     end))
 
+    -- > Limpeza automática se removido da hierarquia
     table.insert(self._connections, button.AncestryChanged:Connect(function(_, p)
         if not p and not self._destroyed then
             self:Destroy()
@@ -2704,6 +2698,99 @@ end
 
 -- > Funções Públicas para criar componentes
 
+Tekscripts.Localization = {
+    Enabled = true,
+    Prefix = "loc:",
+    DefaultLanguage = "en",
+    CurrentLanguage = "en",
+    Translations = {},
+    -- > Evento interno para disparar atualizações globais
+    _Changed = Instance.new("BindableEvent"),
+
+    -- > API de Inicialização
+    Init = function(self, translations)
+        if type(translations) == "table" then
+            self.Translations = translations
+        end
+    end,
+
+    -- > Função interna para componentes usarem
+    -- > label: O Objeto TextLabel/TextButton
+    -- > rawText: A string original (ex: "loc:play" ou "Olá")
+    _ApplyDynamicLocalization = function(self, label: TextLabel | TextButton, rawText: string)
+        if not label or type(rawText) ~= "string" then return end
+
+        -- > Função que aplica a tradução no momento atual
+        local function update()
+            if label and label.Parent then
+                label.Text = self:TranslateText(rawText)
+            end
+        end
+
+        -- > Executa a primeira vez (Inicia o texto)
+        update()
+
+        -- > Conecta ao evento de mudança para manter consistência
+        local connection
+        connection = self._Changed.Event:Connect(function()
+            -- > Verifica se o objeto ainda existe para evitar memory leak
+            if label and label.Parent then
+                update()
+            else
+                connection:Disconnect() -- > Limpa cache de conexão se o objeto sumiu
+            end
+        end)
+
+        return connection
+    end,
+
+    SetLanguage = function(self, lang)
+        if self.Translations[lang] then
+            self.CurrentLanguage = lang
+            -- > Notifica todos os componentes inscritos
+            self._Changed:Fire(lang)
+        else
+            warn("Idioma não encontrado: "..tostring(lang))
+        end
+    end,
+
+    GetLanguage = function(self)
+        return self.CurrentLanguage
+    end,
+
+    SetTranslations = function(self, lang, translations)
+        if type(translations) ~= "table" then return end
+        self.Translations[lang] = self.Translations[lang] or {}
+        for k,v in pairs(translations) do
+            self.Translations[lang][k] = v
+        end
+    end,
+
+    Get = function(self, key)
+        if not self.Enabled then return key end
+        if type(key) == "string" and key:sub(1,#self.Prefix) == self.Prefix then
+            key = key:sub(#self.Prefix+1)
+        end
+        local lang = self.CurrentLanguage
+        local t = self.Translations[lang] or self.Translations[self.DefaultLanguage]
+        return (t and t[key]) or key
+    end,
+
+    TranslateText = function(self, text)
+        if type(text) ~= "string" then return text end
+        if text:sub(1, #self.Prefix) == self.Prefix then
+            return self:Get(text)
+        end
+        return text
+    end,
+
+    SetEnabled = function(self, state)
+        self.Enabled = state and true or false
+        self._Changed:Fire(self.CurrentLanguage) -- > Atualiza visual ao ligar/desligar
+    end
+}
+
+
 -- > 🟩 API COPY
 
 -- > 🔹 Copiar texto universalmente
@@ -2869,8 +2956,8 @@ function Tekscripts:CreateTextBox(tab, options)
     assert(type(tab) == "table" and tab.Container, "Invalid Tab object provided to CreateTextBox")
     assert(type(options) == "table" and type(options.Text) == "string", "Invalid arguments for CreateTextBox")
 
-    local title = options.Text or "Log"
-    local desc = options.Desc
+    local titleRaw = options.Text or "Log"
+    local descRaw = options.Desc
     local defaultText = options.Default or ""
     local readonly = options.ReadOnly or true
 
@@ -2879,10 +2966,10 @@ function Tekscripts:CreateTextBox(tab, options)
     boxHolder.Name = "TextBox"
     RegisterThemeItem("ComponentBackground", boxHolder, "BackgroundColor3")
     boxHolder.BackgroundColor3 = DESIGN.ComponentBackground
-    boxHolder.Size = UDim2.new(1, 0, 0, desc and 140 or 120)
+    boxHolder.Size = UDim2.new(1, 0, 0, descRaw and 140 or 120)
 
     local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, DESIGN.CornerRadius)
+    corner.CornerRadius = UDim.new(0, DESIGN.CornerRadius or 8)
     corner.Parent = boxHolder
 
     local stroke = Instance.new("UIStroke")
@@ -2894,16 +2981,15 @@ function Tekscripts:CreateTextBox(tab, options)
 
     -- > // LAYOUT BASE
     local padding = Instance.new("UIPadding")
-    padding.PaddingTop = UDim.new(0, DESIGN.ComponentPadding)
-    padding.PaddingBottom = UDim.new(0, DESIGN.ComponentPadding)
-    padding.PaddingLeft = UDim.new(0, DESIGN.ComponentPadding)
-    padding.PaddingRight = UDim.new(0, DESIGN.ComponentPadding)
+    padding.PaddingTop = UDim.new(0, DESIGN.ComponentPadding or 10)
+    padding.PaddingBottom = UDim.new(0, DESIGN.ComponentPadding or 10)
+    padding.PaddingLeft = UDim.new(0, DESIGN.ComponentPadding or 10)
+    padding.PaddingRight = UDim.new(0, DESIGN.ComponentPadding or 10)
     padding.Parent = boxHolder
 
-    -- > // TÍTULO
+    -- > // TÍTULO (Com Tradução Dinâmica)
     local titleLabel = Instance.new("TextLabel")
     titleLabel.BackgroundTransparency = 1
-    titleLabel.Text = title
     titleLabel.Font = Enum.Font.Gotham
     RegisterThemeItem("ComponentTextColor", titleLabel, "TextColor3")
     titleLabel.TextColor3 = DESIGN.ComponentTextColor
@@ -2911,13 +2997,16 @@ function Tekscripts:CreateTextBox(tab, options)
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.Size = UDim2.new(1, -10, 0, 18)
     titleLabel.Parent = boxHolder
+    
+    -- > Aplica localização dinâmica ao título
+    local titleConn = Tekscripts.Localization:_ApplyDynamicLocalization(titleLabel, titleRaw)
 
-    -- > // SUBTÍTULO
+    -- > // SUBTÍTULO (Com Tradução Dinâmica)
     local currentY = 22
-    if desc then
+    local descConn = nil
+    if descRaw then
         local sub = Instance.new("TextLabel")
         sub.BackgroundTransparency = 1
-        sub.Text = desc
         sub.Font = Enum.Font.GothamSemibold
         sub.TextColor3 = Color3.fromRGB(150, 150, 150)
         sub.TextSize = 12
@@ -2925,6 +3014,9 @@ function Tekscripts:CreateTextBox(tab, options)
         sub.Position = UDim2.new(0, 0, 0, currentY)
         sub.Size = UDim2.new(1, -10, 0, 16)
         sub.Parent = boxHolder
+        
+        -- > Aplica localização dinâmica à descrição
+        descConn = Tekscripts.Localization:_ApplyDynamicLocalization(sub, descRaw)
         currentY += 20
     end
 
@@ -2934,7 +3026,7 @@ function Tekscripts:CreateTextBox(tab, options)
     scroll.BackgroundColor3 = DESIGN.InputBackgroundColor 
     scroll.BorderSizePixel = 0
     scroll.Position = UDim2.new(0, 0, 0, currentY + 6)
-    scroll.Size = UDim2.new(1, 0, 1, desc and -currentY - 14 or -28)
+    scroll.Size = UDim2.new(1, 0, 1, descRaw and -currentY - 14 or -28)
     scroll.ScrollBarThickness = 4
     RegisterThemeItem("SliderTrackColor", scroll, "ScrollBarImageColor3")
     scroll.ScrollBarImageColor3 = DESIGN.SliderTrackColor
@@ -2961,7 +3053,7 @@ function Tekscripts:CreateTextBox(tab, options)
     scrollStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     scrollStroke.Parent = scroll
 
-    -- > // TEXTO PRINCIPAL
+    -- > // TEXTO PRINCIPAL (Conteúdo do Log)
     local textLabel = Instance.new("TextLabel")
     textLabel.BackgroundTransparency = 1
     RegisterThemeItem("InputTextColor", textLabel, "TextColor3")
@@ -2996,7 +3088,9 @@ function Tekscripts:CreateTextBox(tab, options)
         _instance = boxHolder,
         _scroll = scroll,
         _label = textLabel,
-        _readonly = readonly
+        _readonly = readonly,
+        _titleConn = titleConn, -- > Guardado para limpeza
+        _descConn = descConn
     }
 
     function publicApi:_reapplyThemeColors()
@@ -3007,7 +3101,6 @@ function Tekscripts:CreateTextBox(tab, options)
     RegisterThemeItem("WindowColor2", publicApi, "_reapplyThemeColors")
     RegisterThemeItem("SliderTrackColor", publicApi, "_reapplyThemeColors")
     RegisterThemeItem("HRColor", publicApi, "_reapplyThemeColors")
-
 
     function publicApi:SetText(newText)
         textLabel.Text = tostring(newText)
@@ -3020,7 +3113,8 @@ function Tekscripts:CreateTextBox(tab, options)
     end
 
     function publicApi:Append(line)
-        textLabel.Text = textLabel.Text .. "\n" .. tostring(line)
+        local current = textLabel.Text
+        textLabel.Text = (current == "" and "" or current .. "\n") .. tostring(line)
         task.wait()
         scroll.CanvasPosition = Vector2.new(0, math.huge)
     end
@@ -3035,6 +3129,10 @@ function Tekscripts:CreateTextBox(tab, options)
     end
 
     function publicApi:Destroy()
+        -- > Limpeza de conexões de tradução para evitar memory leaks
+        if self._titleConn then self._titleConn:Disconnect() end
+        if self._descConn then self._descConn:Disconnect() end
+        
         if publicApi._instance then
             publicApi._instance:Destroy()
             publicApi._instance = nil
@@ -3051,26 +3149,25 @@ function Tekscripts:CreateTextBox(tab, options)
     return publicApi
 end
 
-
 function Tekscripts:CreateBind(tab, options)
 	assert(type(tab) == "table" and tab.Container, "Invalid Tab object provided to CreateBind")
 	assert(type(options) == "table" and type(options.Text) == "string", "Invalid arguments for CreateBind")
 
-	local title = options.Text or "Keybind"
-	local desc = options.Desc
+	local titleRaw = options.Text or "Keybind"
+	local descRaw = options.Desc
 	local defaultKey = options.Default or Enum.KeyCode.F
 	local callback = typeof(options.Callback) == "function" and options.Callback or function() end
 
 	local UserInputService = game:GetService("UserInputService")
-	local TweenService = game:GetService("TweenService") -- > Necessário para a animação de erro
+	local TweenService = game:GetService("TweenService")
 
 	-- > CRIAÇÃO DE ELEMENTOS
 	local box = Instance.new("Frame")
 	box.Name = "BindBox"
 	RegisterThemeItem("ComponentBackground", box, "BackgroundColor3")
 	box.BackgroundColor3 = DESIGN.ComponentBackground
-    box.BackgroundTransparency = DESIGN.TabContainerTransparency
-	box.Size = UDim2.new(1, 0, 0, desc and DESIGN.ComponentHeight + 10 or DESIGN.ComponentHeight)
+    box.BackgroundTransparency = DESIGN.TabContainerTransparency or 0
+	box.Size = UDim2.new(1, 0, 0, descRaw and DESIGN.ComponentHeight + 10 or DESIGN.ComponentHeight)
 	box.ClipsDescendants = true
 
 	local corner = Instance.new("UICorner")
@@ -3096,9 +3193,9 @@ function Tekscripts:CreateBind(tab, options)
 	holder.Size = UDim2.new(1, 0, 1, 0)
 	holder.Parent = box
 
+	-- > TÍTULO (Com Localização Dinâmica)
 	local label = Instance.new("TextLabel")
 	label.BackgroundTransparency = 1
-	label.Text = title
 	label.Font = Enum.Font.Gotham
 	RegisterThemeItem("ComponentTextColor", label, "TextColor3")
 	label.TextColor3 = DESIGN.ComponentTextColor
@@ -3106,12 +3203,16 @@ function Tekscripts:CreateBind(tab, options)
 	label.TextXAlignment = Enum.TextXAlignment.Left
 	label.Size = UDim2.new(1, -80, 1, 0)
 	label.Parent = holder
+	
+	-- > Conecta o título ao sistema de tradução
+	local titleConn = Tekscripts.Localization:_ApplyDynamicLocalization(label, titleRaw)
 
-	if desc then
+	-- > DESCRIÇÃO (Com Localização Dinâmica)
+	local descConn = nil
+	if descRaw then
 		label.TextYAlignment = Enum.TextYAlignment.Top
 		local sub = Instance.new("TextLabel")
 		sub.BackgroundTransparency = 1
-		sub.Text = desc
 		sub.Font = Enum.Font.GothamSemibold
 		RegisterThemeItem("EmptyStateTextColor", sub, "TextColor3")
 		sub.TextColor3 = DESIGN.EmptyStateTextColor
@@ -3120,6 +3221,9 @@ function Tekscripts:CreateBind(tab, options)
 		sub.TextYAlignment = Enum.TextYAlignment.Bottom
 		sub.Size = UDim2.new(1, -80, 1, 0)
 		sub.Parent = holder
+		
+		-- > Conecta a descrição ao sistema de tradução
+		descConn = Tekscripts.Localization:_ApplyDynamicLocalization(sub, descRaw)
 	end
 
 	local button = Instance.new("TextButton")
@@ -3158,9 +3262,7 @@ function Tekscripts:CreateBind(tab, options)
 		local conn = signal:Connect(function(...)
 			if destroyed then return end
 			local ok, err = pcall(func, ...)
-			if not ok then
-				warn("[CreateBind:CallbackError]:", err)
-			end
+			if not ok then warn("[CreateBind:CallbackError]:", err) end
 		end)
 		table.insert(connections, conn)
 		return conn
@@ -3170,9 +3272,10 @@ function Tekscripts:CreateBind(tab, options)
 	local function listenForKey()
 		if listening or destroyed then return end
 		listening = true
-		button.Text = "Pressione..."
 		
-		-- > Tween para cor de listening
+		-- > Traduz "Pressione..." se houver chave loc:pressing
+		button.Text = Tekscripts.Localization:TranslateText("loc:pressing") or "..."
+		
 		local oldColor = button.BackgroundColor3
 		TweenService:Create(button, TweenInfo.new(0.2), { BackgroundColor3 = Color3.fromRGB(255, 170, 0) }):Play()
 
@@ -3188,24 +3291,20 @@ function Tekscripts:CreateBind(tab, options)
 					end
 				end)
 				listening = false
-				if inputConn and inputConn.Connected then
-					inputConn:Disconnect()
-				end
+				if inputConn and inputConn.Connected then inputConn:Disconnect() end
 			end
 		end)
 	end
 
-	-- > FEEDBACK SEGURO
+	-- > INTERAÇÕES
 	safeConnect(button.MouseEnter, function()
 		if button and not destroyed and not listening then
-			-- > Lê DESIGN.ItemHoverColor
 			button.BackgroundColor3 = DESIGN.ItemHoverColor
 		end
 	end)
 
 	safeConnect(button.MouseLeave, function()
 		if button and not destroyed and not listening then
-			-- > Retorna para DESIGN.InputBackgroundColor
 			button.BackgroundColor3 = DESIGN.InputBackgroundColor
 		end
 	end)
@@ -3222,11 +3321,9 @@ function Tekscripts:CreateBind(tab, options)
 				warn("[BindError]:", err)
 				pcall(function()
 					if button and not destroyed then
-						-- > Animação de erro
 						TweenService:Create(button, TweenInfo.new(0.1), { BackgroundColor3 = Color3.fromRGB(200, 80, 80) }):Play()
 						task.delay(0.25, function()
 							if button and not destroyed then
-								-- > Retorna para a cor normal (DESIGN.InputBackgroundColor)
 								TweenService:Create(button, TweenInfo.new(0.2), { BackgroundColor3 = DESIGN.InputBackgroundColor }):Play()
 							end
 						end)
@@ -3236,64 +3333,55 @@ function Tekscripts:CreateBind(tab, options)
 		end
 	end)
 
-	-- > API PÚBLICA SEGURA
+	-- > API PÚBLICA
 	local publicApi = {
 		_instance = box,
 		_connections = connections,
+		_titleConn = titleConn, -- > Cache para limpeza
+		_descConn = descConn
 	}
 
-	-- > Função para forçar a cor normal após troca de tema
 	function publicApi:_reapplyButtonColor()
 		if button and not destroyed and not listening then
 			button.BackgroundColor3 = DESIGN.InputBackgroundColor
 		end
 	end
-	-- > Registra para que a cor normal seja restaurada quando o tema muda
+
 	RegisterThemeItem("InputBackgroundColor", publicApi, "_reapplyButtonColor")
 	RegisterThemeItem("ItemHoverColor", publicApi, "_reapplyButtonColor")
 
-	function publicApi:GetKey()
-		return currentKey
-	end
+	function publicApi:GetKey() return currentKey end
 
 	function publicApi:SetKey(newKey)
 		if destroyed then return end
 		if typeof(newKey) == "EnumItem" and newKey.EnumType == Enum.KeyCode then
 			currentKey = newKey
-			pcall(function()
-				if button then button.Text = newKey.Name end
-			end)
-		end
-	end
-
-	function publicApi:Listen()
-		if not destroyed then
-			listenForKey()
+			if button then button.Text = newKey.Name end
 		end
 	end
 
 	function publicApi:Update(newOptions)
 		if destroyed or not newOptions then return end
-		pcall(function()
-			if newOptions.Text then label.Text = newOptions.Text end
-			if newOptions.Desc then desc = newOptions.Desc end
-			if newOptions.Default then
-				currentKey = newOptions.Default
-				button.Text = newOptions.Default.Name
-			end
-		end)
+		if newOptions.Text then 
+			titleRaw = newOptions.Text
+			label.Text = Tekscripts.Localization:TranslateText(titleRaw)
+		end
+		-- ... (atualizar desc se necessário)
 	end
 
 	function publicApi:Destroy()
 		if destroyed then return end
 		destroyed = true
-		pcall(function()
-			for _, conn in ipairs(connections) do
-				if conn and conn.Connected then conn:Disconnect() end
-			end
-			table.clear(connections)
-			if box then box:Destroy() end
-		end)
+		
+		-- > Desconecta localizações
+		if self._titleConn then self._titleConn:Disconnect() end
+		if self._descConn then self._descConn:Disconnect() end
+		
+		for _, conn in ipairs(connections) do
+			if conn and conn.Connected then conn:Disconnect() end
+		end
+		table.clear(connections)
+		if box then box:Destroy() end
 	end
 
 	table.insert(tab.Components, publicApi)
@@ -3314,6 +3402,7 @@ function Tekscripts:CreateDropdown(tab: any, options: {
     assert(type(options) == "table" and type(options.Title) == "string" and type(options.Values) == "table", "Argumentos inválidos")
 
     local TweenService = game:GetService("TweenService")
+    local Localization = Tekscripts.Localization
 
     local multiSelect = options.MultiSelect or false
     local maxVisibleItems = math.min(options.MaxVisibleItems or 5, 8)
@@ -3324,13 +3413,12 @@ function Tekscripts:CreateDropdown(tab: any, options: {
     local box = Instance.new("Frame")
     box.AutomaticSize = Enum.AutomaticSize.Y
     box.Size = UDim2.new(1, 0, 0, 0)
-    -- > REGISTRO DE TEMA PADRÃO
     RegisterThemeItem("ComponentBackground", box, "BackgroundColor3")
     box.BackgroundColor3 = DESIGN.ComponentBackground
-    box.BackgroundTransparency = DESIGN.TabContainerTransparency
+    box.BackgroundTransparency = DESIGN.TabContainerTransparency or 0
     box.BorderSizePixel = 0
     box.Parent = tab.Container
-    addRoundedCorners(box, DESIGN.CornerRadius)
+    addRoundedCorners(box, DESIGN.CornerRadius or 8)
 
     local boxLayout = Instance.new("UIListLayout")
     boxLayout.Padding = UDim.new(0, 0)
@@ -3352,10 +3440,8 @@ function Tekscripts:CreateDropdown(tab: any, options: {
 
     local title = Instance.new("TextLabel")
     title.Name = "Title"
-    title.Text = options.Title
     title.Size = UDim2.new(1, -110, 1, 0)
     title.BackgroundTransparency = 1
-    -- > REGISTRO DE TEMA PADRÃO
     RegisterThemeItem("ComponentTextColor", title, "TextColor3")
     title.TextColor3 = DESIGN.ComponentTextColor
     title.Font = Enum.Font.GothamBold
@@ -3364,6 +3450,9 @@ function Tekscripts:CreateDropdown(tab: any, options: {
     title.TextYAlignment = Enum.TextYAlignment.Center
     title.TextTruncate = Enum.TextTruncate.AtEnd
     title.Parent = main
+
+    -- > APLICAÇÃO DE TRADUÇÃO DINÂMICA (TÍTULO)
+    local titleLocConn = Localization:_ApplyDynamicLocalization(title, options.Title)
 
     local botaoText = createButton("Selecionar ▼", UDim2.new(0, 100, 1, 0), main)
     botaoText.Name = "BotaoText"
@@ -3377,7 +3466,6 @@ function Tekscripts:CreateDropdown(tab: any, options: {
     lister.BackgroundTransparency = 1
     lister.BorderSizePixel = 0
     lister.ClipsDescendants = true
-    -- > REGISTRO DE TEMA PADRÃO (Barra de rolagem)
     RegisterThemeItem("AccentColor", lister, "ScrollBarImageColor3")
     lister.ScrollBarImageColor3 = DESIGN.AccentColor
     lister.ScrollBarThickness = 5
@@ -3400,32 +3488,31 @@ function Tekscripts:CreateDropdown(tab: any, options: {
     listerPadding.Parent = lister
 
     local isOpen = false
-    local selectedValues = {}
+    local selectedValues = {} -- > Armazena as chaves "raw" (podem ser loc: chaves)
     local connections = {}
     local itemElements = {}
     local itemOrder = {}
 
-    local function formatSelectedValues(values)
-        if multiSelect then
-            if #values == 0 then return "Nenhum item selecionado" end
-            return table.concat(values, ", ")
-        else
-            return values or "Nenhum item selecionado"
-        end
-    end
-
+    -- > ATUALIZAÇÃO DE TEXTO DO BOTÃO (Respeita Localização)
     local function updateButtonText()
         local arrow = isOpen and "▲" or "▼"
         if #selectedValues == 0 then
-            botaoText.Text = "Selecionar " .. arrow
+            -- > Traduz "Selecionar" dinamicamente
+            botaoText.Text = Localization:Get("loc:select_none") or "Selecionar" .. " " .. arrow
         elseif #selectedValues == 1 then
-            local displayText = selectedValues[1]
+            -- > Traduz o valor único selecionado
+            local displayText = Localization:TranslateText(selectedValues[1])
             if #displayText > 10 then displayText = string.sub(displayText, 1, 10) .. "..." end
             botaoText.Text = displayText .. " " .. arrow
         else
-            botaoText.Text = string.format("%d itens %s", #selectedValues, arrow)
+            -- > Traduz "itens" dinamicamente
+            local itemWord = Localization:Get("loc:items_count") or "itens"
+            botaoText.Text = string.format("%d %s %s", #selectedValues, itemWord, arrow)
         end
     end
+
+    -- > Escuta mudança de idioma para atualizar o texto do botão
+    connections.LocaleChange = Localization._Changed.Event:Connect(updateButtonText)
 
     local function toggleDropdown()
         isOpen = not isOpen
@@ -3449,12 +3536,9 @@ function Tekscripts:CreateDropdown(tab: any, options: {
         local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad)
         TweenService:Create(elements.container, tweenInfo, { BackgroundColor3 = targetColor }):Play()
         
-        -- > Garante que o indicador use a cor atualizada do tema AccentColor
         if elements.indicator then
             elements.indicator.Visible = isSelected
-            if isSelected then
-                elements.indicator.BackgroundColor3 = DESIGN.AccentColor
-            end
+            if isSelected then elements.indicator.BackgroundColor3 = DESIGN.AccentColor end
         end
         
         if multiSelect and elements.checkIconImage then
@@ -3474,7 +3558,6 @@ function Tekscripts:CreateDropdown(tab: any, options: {
                 setItemSelected(valueName, true)
             end
         else
-            -- > Deseleciona todos os itens para o modo single select
             for name, _ in pairs(itemElements) do setItemSelected(name, false) end
             if isCurrentlySelected then
                 selectedValues = {}
@@ -3496,35 +3579,29 @@ function Tekscripts:CreateDropdown(tab: any, options: {
         local itemContainer = Instance.new("TextButton")
         itemContainer.Name = "Item_" .. index
         itemContainer.Size = UDim2.new(1, 0, 0, itemHeight)
-        -- > REGISTRO DE TEMA PADRÃO
         RegisterThemeItem("ComponentBackground", itemContainer, "BackgroundColor3")
         itemContainer.BackgroundColor3 = DESIGN.ComponentBackground
-        itemContainer.BackgroundTransparency = DESIGN.TabContainerTransparency 
+        itemContainer.BackgroundTransparency = DESIGN.TabContainerTransparency or 0
         itemContainer.BorderSizePixel = 0
         itemContainer.Text = ""
         itemContainer.AutoButtonColor = false
         itemContainer.LayoutOrder = index
         itemContainer.Parent = lister
-        addRoundedCorners(itemContainer, DESIGN.CornerRadius - 2)
-
-        local itemPadding = Instance.new("UIPadding")
-        itemPadding.PaddingLeft = UDim.new(0, 10)
-        itemPadding.PaddingRight = UDim.new(0, 10)
-        itemPadding.Parent = itemContainer
+        addRoundedCorners(itemContainer, (DESIGN.CornerRadius or 8) - 2)
 
         local contentFrame = Instance.new("Frame")
-        contentFrame.Size = UDim2.new(1, 0, 1, 0)
+        contentFrame.Size = UDim2.new(1, -20, 1, 0)
+        contentFrame.Position = UDim2.new(0, 10, 0, 0)
         contentFrame.BackgroundTransparency = 1
         contentFrame.Parent = itemContainer
 
         local indicator
-        local checkIconImage -- > Variável para a nova imagem de check
+        local checkIconImage 
 
         if multiSelect then
             indicator = Instance.new("Frame")
             indicator.Size = UDim2.new(0, 18, 0, 18)
             indicator.Position = UDim2.new(1, -18, 0.5, -9)
-            -- > REGISTRO DE TEMA PADRÃO
             RegisterThemeItem("AccentColor", indicator, "BackgroundColor3")
             indicator.BackgroundColor3 = DESIGN.AccentColor
             indicator.BorderSizePixel = 0
@@ -3535,10 +3612,10 @@ function Tekscripts:CreateDropdown(tab: any, options: {
             checkIconImage = Instance.new("ImageLabel")
             checkIconImage.Size = UDim2.new(1, 0, 1, 0)
             checkIconImage.BackgroundTransparency = 1
-            checkIconImage.Image = "rbxassetid://10709790644" -- > O ID da imagem fornecido
-            checkIconImage.ImageColor3 = Color3.fromRGB(255, 255, 255) -- > Cor branca para garantir contraste
+            checkIconImage.Image = "rbxassetid://10709790644" 
+            checkIconImage.ImageColor3 = Color3.fromRGB(255, 255, 255)
             checkIconImage.ScaleType = Enum.ScaleType.Fit
-            checkIconImage.Visible = false -- > Inicia invisível
+            checkIconImage.Visible = false 
             checkIconImage.Parent = indicator
         else
             indicator = Instance.new("Frame")
@@ -3552,10 +3629,8 @@ function Tekscripts:CreateDropdown(tab: any, options: {
             addRoundedCorners(indicator, UDim.new(1, 0))
         end
 
-        local foto
         if hasImage then
-            foto = Instance.new("ImageLabel")
-            foto.Name = "Foto"
+            local foto = Instance.new("ImageLabel")
             foto.Size = UDim2.new(0, imageSize, 0, imageSize)
             foto.Position = UDim2.new(0, 0, 0.5, -imageSize/2)
             foto.BackgroundTransparency = 1
@@ -3569,12 +3644,9 @@ function Tekscripts:CreateDropdown(tab: any, options: {
         local textWidth = multiSelect and -30 or -12
         
         local itemText = Instance.new("TextLabel")
-        itemText.Name = "ConteudoText"
         itemText.Size = UDim2.new(1, textWidth, 1, 0)
         itemText.Position = UDim2.new(0, textXOffset, 0, 0)
         itemText.BackgroundTransparency = 1
-        itemText.Text = valueInfo.Name
-        -- > REGISTRO DE TEMA PADRÃO
         RegisterThemeItem("ComponentTextColor", itemText, "TextColor3")
         itemText.TextColor3 = DESIGN.ComponentTextColor
         itemText.Font = Enum.Font.Gotham
@@ -3583,207 +3655,150 @@ function Tekscripts:CreateDropdown(tab: any, options: {
         itemText.TextYAlignment = Enum.TextYAlignment.Center
         itemText.TextTruncate = Enum.TextTruncate.AtEnd
         itemText.Parent = contentFrame
+
+        -- > APLICAÇÃO DE TRADUÇÃO DINÂMICA (ITEM DA LISTA)
+        local locConn = Localization:_ApplyDynamicLocalization(itemText, valueInfo.Name)
         
         local function forceItemColorUpdate(selectedState)
             local targetColor = selectedState and DESIGN.AccentColor or DESIGN.ComponentBackground
             itemContainer.BackgroundColor3 = targetColor
-            if indicator then 
-                indicator.Visible = selectedState 
-                if multiSelect and selectedState then indicator.BackgroundColor3 = DESIGN.AccentColor end 
-            end
-            if multiSelect and checkIconImage then
-                checkIconImage.Visible = selectedState
-            end
+            if indicator then indicator.Visible = selectedState end
+            if checkIconImage then checkIconImage.Visible = selectedState end
         end
 
         itemElements[valueInfo.Name] = {
             container = itemContainer,
             indicator = indicator,
-            text = itemText,
-            foto = foto,
+            textLabel = itemText,
             checkIconImage = checkIconImage, 
             forceColorUpdate = forceItemColorUpdate,
+            _locConn = locConn,
             connections = {}
         }
 
-        itemElements[valueInfo.Name].connections.MouseClick = itemContainer.MouseButton1Click:Connect(function()
+        itemElements[valueInfo.Name].connections.Click = itemContainer.MouseButton1Click:Connect(function()
             toggleItemSelection(valueInfo.Name)
         end)
 
-        itemElements[valueInfo.Name].connections.MouseEnter = itemContainer.MouseEnter:Connect(function()
+        itemElements[valueInfo.Name].connections.Hover = itemContainer.MouseEnter:Connect(function()
             if not table.find(selectedValues, valueInfo.Name) then
-                -- > Usa o ItemHoverColor, registrado para o tema
                 local hoverColor = DESIGN.ItemHoverColor or Color3.fromRGB(45, 45, 50) 
                 TweenService:Create(itemContainer, TweenInfo.new(0.15), { BackgroundColor3 = hoverColor }):Play()
             end
         end)
 
-        itemElements[valueInfo.Name].connections.MouseLeave = itemContainer.MouseLeave:Connect(function()
+        itemElements[valueInfo.Name].connections.Leave = itemContainer.MouseLeave:Connect(function()
             if not table.find(selectedValues, valueInfo.Name) then
-                -- > Volta para ComponentBackground, registrado para o tema
                 TweenService:Create(itemContainer, TweenInfo.new(0.15), { BackgroundColor3 = DESIGN.ComponentBackground }):Play()
             end
         end)
     end
 
+    -- > Inicialização dos Itens
     for index, valueInfo in ipairs(options.Values) do
         table.insert(itemOrder, valueInfo.Name)
         createItem(valueInfo, index)
     end
 
     if options.InitialValues then
-        for _, valueToSelect in ipairs(options.InitialValues) do
-            if itemElements[valueToSelect] then
-                table.insert(selectedValues, valueToSelect)
-                itemElements[valueToSelect].forceColorUpdate(true)
+        for _, val in ipairs(options.InitialValues) do
+            if itemElements[val] then
+                table.insert(selectedValues, val)
+                itemElements[val].forceColorUpdate(true)
             end
         end
         updateButtonText()
     end
 
-    connections.ButtonClick = botaoText.MouseButton1Click:Connect(toggleDropdown)
+    connections.Toggle = botaoText.MouseButton1Click:Connect(toggleDropdown)
 
     local publicApi = {
         _instance = box,
         _connections = connections,
         _itemElements = itemElements,
+        _titleLocConn = titleLocConn
     }
     
     function publicApi:_reapplyItemColors()
         for name, elements in pairs(publicApi._itemElements) do
-            local isSelected = table.find(selectedValues, name)
-            elements.forceColorUpdate(isSelected) 
+            elements.forceColorUpdate(table.find(selectedValues, name)) 
         end
     end
+
     RegisterThemeItem("AccentColor", publicApi, "_reapplyItemColors")
     RegisterThemeItem("ComponentBackground", publicApi, "_reapplyItemColors")
-    RegisterThemeItem("ItemHoverColor", publicApi, "_reapplyItemColors")
 
     function publicApi:AddItem(valueInfo, position)
-        assert(type(valueInfo) == "table" and type(valueInfo.Name) == "string", "valueInfo inválido")
-        assert(not itemElements[valueInfo.Name], "Item já existe")
-        
-        position = position or (#itemOrder + 1)
-        position = math.clamp(position, 1, #itemOrder + 1)
-        
+        if itemElements[valueInfo.Name] then return end
+        position = math.clamp(position or (#itemOrder + 1), 1, #itemOrder + 1)
         table.insert(itemOrder, position, valueInfo.Name)
         createItem(valueInfo, position)
-        
         for i, name in ipairs(itemOrder) do
             if itemElements[name] then itemElements[name].container.LayoutOrder = i end
         end
-        
-        -- > Alterna para reativar o dropdown com o novo tamanho (fluente)
         if isOpen then toggleDropdown() task.delay(0.3, toggleDropdown) end
     end
 
     function publicApi:RemoveItem(valueName)
-        assert(type(valueName) == "string", "valueName deve ser string")
-        if itemElements[valueName] then
-            local elements = itemElements[valueName]
-            -- > Desconecta e remove registros de tema do item
-            for _, conn in pairs(elements.connections) do
-                if conn and conn.Connected then conn:Disconnect() end
-            end
-            RegisterThemeItem("ComponentBackground", elements.container, "BackgroundColor3", true)
-            RegisterThemeItem("ComponentTextColor", elements.text, "TextColor3", true)
-            if elements.indicator then RegisterThemeItem("AccentColor", elements.indicator, "BackgroundColor3", true) end
-
+        local elements = itemElements[valueName]
+        if elements then
+            if elements._locConn then elements._locConn:Disconnect() end
+            for _, conn in pairs(elements.connections) do conn:Disconnect() end
             elements.container:Destroy()
             itemElements[valueName] = nil
             
             local idx = table.find(itemOrder, valueName)
             if idx then table.remove(itemOrder, idx) end
             
-            idx = table.find(selectedValues, valueName)
-            if idx then table.remove(selectedValues, idx) end
+            local sIdx = table.find(selectedValues, valueName)
+            if sIdx then table.remove(selectedValues, sIdx) end
             
             updateButtonText()
-            local selected = multiSelect and selectedValues or (selectedValues[1] or nil)
-            if options.Callback then options.Callback(selected) end
-            
-            -- > Alterna para reativar o dropdown com o novo tamanho (fluente)
             if isOpen then toggleDropdown() task.delay(0.3, toggleDropdown) end
         end
     end
 
     function publicApi:ClearItems()
-        -- > Usa 'self' para chamar a função RemoveItem, garantindo a desassociação do tema
         while #itemOrder > 0 do self:RemoveItem(itemOrder[1]) end
     end
 
     function publicApi:Destroy()
         if self._instance then
-            -- > Remove a publicApi dos registros de tema
-            RegisterThemeItem("AccentColor", self, "_reapplyItemColors", true)
-            RegisterThemeItem("ComponentBackground", self, "_reapplyItemColors", true)
-            RegisterThemeItem("ItemHoverColor", self, "_reapplyItemColors", true)
-
-            for _, conn in pairs(self._connections) do
-                if conn and conn.Connected then conn:Disconnect() end
-            end
-            
-            -- > Remove registros de tema e desconecta conexões dos elementos do item
-            for name, _ in pairs(itemElements) do
-                self:RemoveItem(name) -- > Reutiliza RemoveItem para limpar tudo corretamente
-            end
-
-            -- > Remove registros de tema dos elementos principais (box, title, lister)
-            RegisterThemeItem("ComponentBackground", box, "BackgroundColor3", true)
-            RegisterThemeItem("ComponentTextColor", title, "TextColor3", true)
-            RegisterThemeItem("AccentColor", lister, "ScrollBarImageColor3", true)
-
+            if self._titleLocConn then self._titleLocConn:Disconnect() end
+            for _, conn in pairs(self._connections) do conn:Disconnect() end
+            for name, _ in pairs(itemElements) do self:RemoveItem(name) end
             self._instance:Destroy()
             self._instance = nil
-            itemElements = {}
-            itemOrder = {}
-            selectedValues = {}
         end
+    end
+
+    function publicApi:SetSelected(values)
+        local valuesToSet = type(values) == "table" and values or {values}
+        for name, _ in pairs(itemElements) do setItemSelected(name, false) end
+        selectedValues = {}
+        for _, v in ipairs(valuesToSet) do
+            if itemElements[v] then
+                table.insert(selectedValues, v)
+                setItemSelected(v, true)
+            end
+        end
+        updateButtonText()
+        if options.Callback then options.Callback(self:GetSelected()) end
     end
 
     function publicApi:GetSelected()
         return multiSelect and selectedValues or (selectedValues[1] or nil)
     end
 
-    function publicApi:GetSelectedFormatted()
-        return formatSelectedValues(multiSelect and selectedValues or (selectedValues[1] or nil))
-    end
-
-    function publicApi:SetSelected(values)
-        for name, _ in pairs(itemElements) do setItemSelected(name, false) end
-        selectedValues = {}
-        
-        local valuesToSet = type(values) == "table" and values or {values}
-        for _, value in ipairs(valuesToSet) do
-            if itemElements[value] then
-                table.insert(selectedValues, value)
-                setItemSelected(value, true)
-            end
-        end
-        
-        updateButtonText()
-        local selected = multiSelect and selectedValues or (selectedValues[1] or nil)
-        if options.Callback then options.Callback(selected) end
-    end
-
-    function publicApi:Toggle()
-        toggleDropdown()
-    end
-
-    function publicApi:Close()
-        if isOpen then toggleDropdown() end
-    end
-
     table.insert(tab.Components, publicApi)
     return publicApi
 end
 
-
 function Tekscripts:CreateDialog(options) 
     assert(type(options) == "table", "Invalid options")
 
-    local titleText = options.Title or "Título"
-    local messageText = options.Message or "Mensagem"
+    local titleRaw = options.Title or "Título"
+    local messageRaw = options.Message or "Mensagem"
     local buttons = options.Buttons or { {Text = "Ok", Callback = function() end} }
 
     local player = game:GetService("Players").LocalPlayer
@@ -3796,25 +3811,26 @@ function Tekscripts:CreateDialog(options)
     screen.ResetOnSpawn = false
     screen.Parent = PlayerGui
 
+    -- > // OVERLAY DE FUNDO
     local overlay = Instance.new("Frame")
     overlay.Name = "Overlay"
     overlay.Size = UDim2.new(1, 0, 1, 0)
     overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    -- > O overlay será registrado separadamente para recalcular sua transparência
-    overlay.BackgroundTransparency = 1 - DESIGN.WindowTransparency
+    -- > O overlay usa a transparência baseada no design
+    overlay.BackgroundTransparency = 1 - (DESIGN.WindowTransparency or 0.1)
     overlay.ZIndex = 999 
     overlay.Parent = screen
     
     -- > Função auxiliar para o overlay, que usa 1 - DESIGN.WindowTransparency
     local function updateOverlayTransparency()
         if overlay and overlay.Parent then
-            overlay.BackgroundTransparency = 1 - DESIGN.WindowTransparency
+            overlay.BackgroundTransparency = 1 - (DESIGN.WindowTransparency or 0.1)
         end
     end
     -- > Registra o overlay em uma chave customizada para a transparência
     RegisterThemeItem("WindowTransparency", {object = {BackgroundTransparency = overlay.BackgroundTransparency}, property = "BackgroundTransparency"}, updateOverlayTransparency)
 
-
+    -- > // CAIXA DE DIÁLOGO
     local box = Instance.new("Frame")
     box.Name = "DialogBox"
     box.Size = UDim2.new(0, 340, 0, 0)
@@ -3829,26 +3845,26 @@ function Tekscripts:CreateDialog(options)
     box.Parent = screen
 
     local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, DESIGN.CornerRadius)
+    corner.CornerRadius = UDim.new(0, DESIGN.CornerRadius or 8)
     corner.Parent = box
 
     local layout = Instance.new("UIListLayout")
     layout.SortOrder = Enum.SortOrder.LayoutOrder
-    layout.Padding = UDim.new(0, DESIGN.ComponentPadding)
+    layout.Padding = UDim.new(0, DESIGN.ComponentPadding or 10)
     layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
     layout.Parent = box
 
     local padding = Instance.new("UIPadding")
-    padding.PaddingTop = UDim.new(0, DESIGN.TitlePadding)
-    padding.PaddingBottom = UDim.new(0, DESIGN.TitlePadding)
-    padding.PaddingLeft = UDim.new(0, DESIGN.ComponentPadding)
-    padding.PaddingRight = UDim.new(0, DESIGN.ComponentPadding)
+    padding.PaddingTop = UDim.new(0, DESIGN.TitlePadding or 15)
+    padding.PaddingBottom = UDim.new(0, DESIGN.TitlePadding or 15)
+    padding.PaddingLeft = UDim.new(0, DESIGN.ComponentPadding or 10)
+    padding.PaddingRight = UDim.new(0, DESIGN.ComponentPadding or 10)
     padding.Parent = box
 
+    -- > // TÍTULO (Dinâmico)
     local title = Instance.new("TextLabel")
     title.Name = "Title"
-    title.Text = titleText
-    title.Size = UDim2.new(1, 0, 0, DESIGN.TitleHeight)
+    title.Size = UDim2.new(1, 0, 0, DESIGN.TitleHeight or 30)
     title.BackgroundTransparency = 1
     RegisterThemeItem("TitleColor", title, "TextColor3")
     title.TextColor3 = DESIGN.TitleColor
@@ -3860,6 +3876,9 @@ function Tekscripts:CreateDialog(options)
     title.LayoutOrder = 1
     title.Parent = box
 
+    -- > Aplica Localização ao Título
+    local titleLoc = Tekscripts.Localization:_ApplyDynamicLocalization(title, titleRaw)
+
     local hr = Instance.new("Frame")
     hr.Name = "TitleDivider"
     hr.Size = UDim2.new(1, 0, 0, 2)
@@ -3870,9 +3889,9 @@ function Tekscripts:CreateDialog(options)
     hr.LayoutOrder = 2
     hr.Parent = box
 
+    -- > // MENSAGEM (Dinâmica)
     local message = Instance.new("TextLabel")
     message.Name = "Message"
-    message.Text = messageText
     message.Size = UDim2.new(1, 0, 0, 0)
     message.AutomaticSize = Enum.AutomaticSize.Y
     message.BackgroundTransparency = 1
@@ -3887,6 +3906,9 @@ function Tekscripts:CreateDialog(options)
     message.LayoutOrder = 3
     message.Parent = box
 
+    -- > Aplica Localização à Mensagem
+    local messageLoc = Tekscripts.Localization:_ApplyDynamicLocalization(message, messageRaw)
+
     local buttonHolder = Instance.new("Frame")
     buttonHolder.Name = "ButtonHolder"
     buttonHolder.Size = UDim2.new(1, 0, 0, 36)
@@ -3899,17 +3921,18 @@ function Tekscripts:CreateDialog(options)
     btnLayout.FillDirection = Enum.FillDirection.Horizontal
     btnLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
     btnLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-    btnLayout.Padding = UDim.new(0, DESIGN.ComponentPadding)
+    btnLayout.Padding = UDim.new(0, DESIGN.ComponentPadding or 10)
     btnLayout.Parent = buttonHolder
 
     local connections = {}
-    
-    -- > Lista de referências para forçar o re-hover (necessário quando o tema muda)
+    local localizationConns = {titleLoc, messageLoc}
     local buttonsApi = {} 
 
+    -- > // GERAÇÃO DE BOTÕES
     for i, btnInfo in ipairs(buttons) do
+        local btnRawText = btnInfo.Text or "Button"
         local btn = Instance.new("TextButton")
-        btn.Name = btnInfo.Text or ("Button" .. i)
+        btn.Name = "DialogButton_" .. i
         btn.Size = UDim2.new(0, 100, 0, 30)
         
         RegisterThemeItem("InputBackgroundColor", btn, "BackgroundColor3")
@@ -3919,15 +3942,19 @@ function Tekscripts:CreateDialog(options)
         btn.TextColor3 = DESIGN.InputTextColor
         btn.Font = Enum.Font.Gotham
         btn.TextSize = 14
-        btn.Text = btnInfo.Text or "Button"
         btn.ZIndex = 1002
         btn.AutoButtonColor = false
         btn.Parent = buttonHolder
 
+        -- > Aplica Localização ao Botão
+        local btnLoc = Tekscripts.Localization:_ApplyDynamicLocalization(btn, btnRawText)
+        table.insert(localizationConns, btnLoc)
+
         local btnCorner = Instance.new("UICorner")
-        btnCorner.CornerRadius = UDim.new(0, DESIGN.CornerRadius / 2)
+        btnCorner.CornerRadius = UDim.new(0, (DESIGN.CornerRadius or 8) / 2)
         btnCorner.Parent = btn
 
+        -- > // LOGICA DE HOVER
         local function mouseEnter()
             btn.BackgroundColor3 = DESIGN.ComponentHoverColor
         end
@@ -3935,39 +3962,47 @@ function Tekscripts:CreateDialog(options)
             btn.BackgroundColor3 = DESIGN.InputBackgroundColor
         end
         
-        local enterConn = btn.MouseEnter:Connect(mouseEnter)
-        local leaveConn = btn.MouseLeave:Connect(mouseLeave)
-
-        table.insert(connections, enterConn)
-        table.insert(connections, leaveConn)
+        table.insert(connections, btn.MouseEnter:Connect(mouseEnter))
+        table.insert(connections, btn.MouseLeave:Connect(mouseLeave))
         
-        -- > API interna do botão para forçar o Leave/Re-apply
+        -- > API interna para compatibilidade com Temas
         local buttonApi = {
             instance = btn,
             reapplyTheme = function()
-                mouseLeave() -- > Força o botão para a cor normal (InputBackgroundColor)
+                mouseLeave()
             end
         }
         table.insert(buttonsApi, buttonApi)
-        
         RegisterThemeItem("ComponentHoverColor", buttonApi, "reapplyTheme")
 
+        -- > // CALLBACK DO BOTÃO
         table.insert(connections, btn.MouseButton1Click:Connect(function()
-            if btnInfo.Callback then pcall(btnInfo.Callback) end
+            if btnInfo.Callback then 
+                local success, err = pcall(btnInfo.Callback)
+                if not success then warn("[Dialog] Callback Error: " .. tostring(err)) end
+            end
             screen:Destroy()
         end))
     end
 
     local api = {
         _screen = screen,
-        _connections = connections
+        _connections = connections,
+        _locConns = localizationConns
     }
 
+    -- > // LIMPEZA TOTAL
     function api:Destroy()
+        -- > Desconecta todas as localizações dinâmicas (Prevenção de Memory Leak)
+        for _, locConn in ipairs(localizationConns) do
+            if locConn then locConn:Disconnect() end
+        end
+        -- > Desconecta eventos de input
         for _, c in ipairs(connections) do
             if c.Connected then c:Disconnect() end
         end
-        screen:Destroy()
+        -- > Destrói a interface
+        if screen then screen:Destroy() end
     end
 
     return api
@@ -3979,6 +4014,13 @@ function Tekscripts:CreateInput(tab, options)
 
 	local TweenService = game:GetService("TweenService")
 
+	-- > // CONFIGURAÇÃO DE ESTADOS INICIAIS
+	local rawTitle = options.Text
+	local rawPlaceholder = options.Placeholder or ""
+	local rawDesc = options.Desc
+	local rawBlockText = options.BlockText or "🔒 BLOQUEADO"
+
+	-- > // CONTAINER PRINCIPAL
 	local box = Instance.new("Frame")
 	box.Size = UDim2.new(1, 0, 0, DESIGN.ComponentHeight + 30)
 	RegisterThemeItem("ComponentBackground", box, "BackgroundColor3")
@@ -4000,6 +4042,7 @@ function Tekscripts:CreateInput(tab, options)
 	layout.SortOrder = Enum.SortOrder.LayoutOrder
 	layout.Parent = box
 
+	-- > // LINHA SUPERIOR (Título + Input)
 	local topRow = Instance.new("Frame")
 	topRow.Size = UDim2.new(1, 0, 0, 28)
 	topRow.BackgroundTransparency = 1
@@ -4012,22 +4055,25 @@ function Tekscripts:CreateInput(tab, options)
 	rowLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	rowLayout.Parent = topRow
 
+	-- > TÍTULO (Dinâmico)
 	local title = Instance.new("TextLabel")
 	title.Size = UDim2.new(0.4, 0, 1, 0)
 	title.BackgroundTransparency = 1
-	title.Text = options.Text
 	title.Font = Enum.Font.GothamBold
 	title.TextScaled = true
 	title.TextXAlignment = Enum.TextXAlignment.Left
 	RegisterThemeItem("ComponentTextColor", title, "TextColor3")
 	title.TextColor3 = DESIGN.ComponentTextColor
 	title.Parent = topRow
+	
+	-- > Conexão de Localização do Título
+	local titleLoc = Tekscripts.Localization:_ApplyDynamicLocalization(title, rawTitle)
 
+	-- > INPUT TEXTBOX
 	local textbox = Instance.new("TextBox")
 	textbox.Size = UDim2.new(0.6, 0, 1, 0)
 	RegisterThemeItem("InputBackgroundColor", textbox, "BackgroundColor3")
 	textbox.BackgroundColor3 = DESIGN.InputBackgroundColor
-	textbox.PlaceholderText = options.Placeholder or ""
 	textbox.PlaceholderColor3 = Color3.fromRGB(140, 140, 140)
 	RegisterThemeItem("InputTextColor", textbox, "TextColor3")
 	textbox.TextColor3 = DESIGN.InputTextColor
@@ -4040,8 +4086,18 @@ function Tekscripts:CreateInput(tab, options)
 	textbox.ClipsDescendants = true
 	textbox.Parent = topRow
 	addRoundedCorners(textbox, DESIGN.CornerRadius)
+	
+	-- > Placeholder Dinâmico (Usa função interna para atualizar a propriedade PlaceholderText)
+	local placeholderLoc = nil
+	local function updatePlaceholder()
+		textbox.PlaceholderText = Tekscripts.Localization:TranslateText(rawPlaceholder)
+	end
+	placeholderLoc = Tekscripts.Localization._Changed.Event:Connect(updatePlaceholder)
+	updatePlaceholder()
+
 	local hoverConnections = addHoverEffect(textbox, DESIGN.InputBackgroundColor, DESIGN.InputHoverColor)
 
+	-- > OVERLAY DE BLOQUEIO
 	local blockOverlay = Instance.new("Frame")
 	blockOverlay.Size = UDim2.new(1, 0, 1, 0)
 	blockOverlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
@@ -4056,12 +4112,14 @@ function Tekscripts:CreateInput(tab, options)
 	blockText.Position = UDim2.new(0.5, 0, 0.5, 0)
 	blockText.Size = UDim2.new(1, -8, 1, -8)
 	blockText.BackgroundTransparency = 1
-	blockText.Text = options.BlockText or "🔒 BLOQUEADO"
 	blockText.Font = Enum.Font.GothamBold
 	blockText.TextScaled = true
 	blockText.TextColor3 = Color3.fromRGB(255, 85, 85)
 	blockText.ZIndex = blockOverlay.ZIndex + 1
 	blockText.Parent = blockOverlay
+	
+	-- > Localização do texto de bloqueio
+	local blockLoc = Tekscripts.Localization:_ApplyDynamicLocalization(blockText, rawBlockText)
 
 	local errorIndicator = Instance.new("Frame")
 	errorIndicator.Size = UDim2.new(0, 8, 0, 8)
@@ -4072,43 +4130,49 @@ function Tekscripts:CreateInput(tab, options)
 	addRoundedCorners(errorIndicator, 100)
 	errorIndicator.Parent = textbox
 
-	local desc
-	if options.Desc then
+	-- > DESCRIÇÃO (Dinâmica)
+	local desc = nil
+	local descLoc = nil
+	if rawDesc then
 		desc = Instance.new("TextLabel")
 		desc.Size = UDim2.new(1, 0, 0, 14)
 		desc.BackgroundTransparency = 1
-		desc.Text = options.Desc
 		desc.Font = Enum.Font.Gotham
 		desc.TextScaled = true
 		desc.TextWrapped = true
 		desc.TextXAlignment = Enum.TextXAlignment.Left
-		-- > Não registramos diretamente, mas dependemos da ComponentTextColor, garantindo a tonalidade
 		desc.TextColor3 = DESIGN.ComponentTextColor:lerp(Color3.new(0.7, 0.7, 0.7), 0.6)
 		desc.Parent = box
+		
+		descLoc = Tekscripts.Localization:_ApplyDynamicLocalization(desc, rawDesc)
 	end
 
+	-- > // LOGICA E API
 	local connections = {}
-	local publicApi = { _instance = box, _connections = connections, Blocked = false, _hoverConnections = hoverConnections }
+	local publicApi = { 
+		_instance = box, 
+		_connections = connections, 
+		Blocked = false, 
+		_hoverConnections = hoverConnections,
+		_locConnections = { titleLoc, placeholderLoc, blockLoc, descLoc } 
+	}
+	
 	local inError = false
 	
-	-- > Função para reaplicar hover após tema. Assume que addHoverEffect tem um destrutor/reaplicador interno
 	local function reapplyHoverEffect()
 		if publicApi._hoverConnections then
 			for _, conn in pairs(publicApi._hoverConnections) do
 				if conn and conn.Connected then conn:Disconnect() end
 			end
 		end
-		-- > Reaplica o efeito com as cores atuais do DESIGN
 		publicApi._hoverConnections = addHoverEffect(textbox, DESIGN.InputBackgroundColor, DESIGN.InputHoverColor)
 	end
 	
-	-- > Adiciona o hook para reativar o hover após o tema mudar
 	RegisterThemeItem("InputHoverColor", publicApi, "_reapplyHover")
 	
 	function publicApi:_reapplyHover()
 	    reapplyHoverEffect()
 	end
-
 
 	local function pulseError()
 		if not textbox then return end
@@ -4119,7 +4183,6 @@ function Tekscripts:CreateInput(tab, options)
 			if textbox and not publicApi.Blocked then
 				inError = false
 				errorIndicator.Visible = false
-				-- > Usa DESIGN.InputBackgroundColor para reverter para a cor correta do tema atual
 				TweenService:Create(textbox, TweenInfo.new(0.2), { BackgroundColor3 = DESIGN.InputBackgroundColor }):Play()
 			end
 		end)
@@ -4151,39 +4214,61 @@ function Tekscripts:CreateInput(tab, options)
 		end)
 	end
 
+	-- > // METODOS PUBLICOS
 	function publicApi:SetBlocked(state, text)
 		self.Blocked = state
 		textbox.Active = not state
 		textbox.TextEditable = not state
 		blockOverlay.Visible = state
-		if text then blockText.Text = tostring(text) end
+		if text then 
+			rawBlockText = tostring(text)
+			blockText.Text = Tekscripts.Localization:TranslateText(rawBlockText)
+		end
 	end
 
 	function publicApi:Update(newOptions)
 		if not newOptions then return end
-		if newOptions.Text then title.Text = newOptions.Text end
-		if newOptions.Placeholder then textbox.PlaceholderText = newOptions.Placeholder end
+		if newOptions.Text then 
+			rawTitle = newOptions.Text
+			title.Text = Tekscripts.Localization:TranslateText(rawTitle)
+		end
+		if newOptions.Placeholder then 
+			rawPlaceholder = newOptions.Placeholder
+			updatePlaceholder()
+		end
 		if newOptions.Desc then
-			if desc then desc.Text = newOptions.Desc
-			elseif newOptions.Desc ~= "" then
+			rawDesc = newOptions.Desc
+			if desc then 
+				desc.Text = Tekscripts.Localization:TranslateText(rawDesc)
+			elseif rawDesc ~= "" then
 				desc = Instance.new("TextLabel")
 				desc.Size = UDim2.new(1, 0, 0, 14)
 				desc.BackgroundTransparency = 1
-				-- > Recria a cor do texto do desc
 				desc.TextColor3 = DESIGN.ComponentTextColor:lerp(Color3.new(0.7, 0.7, 0.7), 0.6)
 				desc.Font = Enum.Font.Gotham
 				desc.TextScaled = true
 				desc.TextWrapped = true
 				desc.TextXAlignment = Enum.TextXAlignment.Left
-				desc.Text = newOptions.Desc
 				desc.Parent = box
+				publicApi._locConnections[4] = Tekscripts.Localization:_ApplyDynamicLocalization(desc, rawDesc)
 			end
 		end
 		if newOptions.Value ~= nil then textbox.Text = tostring(newOptions.Value) end
-		if newOptions.BlockText then blockText.Text = tostring(newOptions.BlockText) end
+		if newOptions.BlockText then 
+			rawBlockText = newOptions.BlockText
+			blockText.Text = Tekscripts.Localization:TranslateText(rawBlockText)
+		end
 	end
 
 	function publicApi:Destroy()
+		-- > Limpa todas as conexões de localização (Cache)
+		if self._locConnections then
+			for _, conn in pairs(self._locConnections) do
+				if conn and conn.Disconnect then conn:Disconnect() end
+			end
+			self._locConnections = nil
+		end
+		
 		if self._connections then
 			for _, conn in pairs(self._connections) do
 				if conn and conn.Connected then conn:Disconnect() end
@@ -4206,7 +4291,6 @@ function Tekscripts:CreateInput(tab, options)
 	return publicApi
 end
 
-
 function Tekscripts:CreateButton(tab, options)
     assert(typeof(tab) == "table" and tab.Container, "CreateButton: 'tab' inválido ou sem Container.")
     assert(typeof(options) == "table" and typeof(options.Text) == "string", "CreateButton: 'options' inválido.")
@@ -4216,6 +4300,7 @@ function Tekscripts:CreateButton(tab, options)
     local callback = typeof(options.Callback) == "function" and options.Callback or function() end
     local debounceTime = tonumber(options.Debounce or 0.25)
     local lastClick = 0
+    local rawText = options.Text -- > Armazena a chave original para tradução dinâmica
     
     local errorColor = Color3.fromRGB(255, 60, 60)
     
@@ -4240,10 +4325,13 @@ function Tekscripts:CreateButton(tab, options)
     
     btn.Font = Enum.Font.Gotham
     btn.TextSize = 14
-    btn.Text = options.Text
     btn.AutoButtonColor = false
     btn.ClipsDescendants = true
     btn.Parent = tab.Container
+
+    -- > APLICAÇÃO DA LOCALIZAÇÃO DINÂMICA
+    -- > A função interna cuida de setar o texto inicial e monitorar mudanças de idioma
+    local localizationConn = Tekscripts.Localization:_ApplyDynamicLocalization(btn, rawText)
 
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, DESIGN.CornerRadius)
@@ -4283,6 +4371,7 @@ function Tekscripts:CreateButton(tab, options)
         if tick() - lastClick < debounceTime then return end
         lastClick = tick()
 
+        -- > Feedback visual de clique (Encolher levemente)
         tweenTo({Size = UDim2.new(0.95, 0, 0, DESIGN.ComponentHeight * 0.9)}, 0.1)
         task.delay(0.1, function()
             tweenTo({Size = UDim2.new(1, 0, 0, DESIGN.ComponentHeight)}, 0.1)
@@ -4302,13 +4391,12 @@ function Tekscripts:CreateButton(tab, options)
 
     local publicApi = {
         _instance = btn,
-        _connections = {clickConn, hoverConn, leaveConn},
+        _connections = {clickConn, hoverConn, leaveConn, localizationConn}, -- > Adicionada a conexão de localização
         _blocked = false,
         _callback = callback,
-        -- > Adicionando método para forçar a reaplicação de cor em caso de troca de tema
+        -- > Método para forçar a reaplicação de cor em caso de troca de tema
         _reapplyTheme = function() 
             if not self._blocked then
-                -- > Força a cor normal do botão
                 tweenTo({BackgroundColor3 = getColors().btn}, 0.1) 
             end
         end
@@ -4323,23 +4411,41 @@ function Tekscripts:CreateButton(tab, options)
 
     function publicApi:Update(newOptions)
         if typeof(newOptions) ~= "table" then return end
-        if newOptions.Text then btn.Text = tostring(newOptions.Text) end
+        
+        -- > Se o texto mudar, precisamos atualizar a localização dinâmica
+        if newOptions.Text then 
+            rawText = newOptions.Text
+            -- > Disconecta a antiga e cria uma nova para o novo texto
+            if self._connections[4] then self._connections[4]:Disconnect() end
+            self._connections[4] = Tekscripts.Localization:_ApplyDynamicLocalization(btn, rawText)
+        end
+
         if typeof(newOptions.Callback) == "function" then
             callback = newOptions.Callback
             self._callback = callback
         end
+        
         if newOptions.Debounce then
             debounceTime = tonumber(newOptions.Debounce)
         end
     end
 
     function publicApi:Destroy()
-        for _, c in ipairs(self._connections) do
-            if c.Connected then c:Disconnect() end
+        -- > Limpa todas as conexões, incluindo o listener de idioma
+        if self._connections then
+            for _, c in ipairs(self._connections) do
+                if c and typeof(c) == "RBXScriptConnection" then
+                    c:Disconnect()
+                elseif c and typeof(c) == "table" and c.Disconnect then
+                    c:Disconnect() -- > Caso o retorno do localization seja uma tabela fake de conexão
+                end
+            end
         end
+
         if self._instance then
             self._instance:Destroy()
         end
+        
         self._connections = nil
         self._instance = nil
         self._callback = nil
@@ -4354,8 +4460,8 @@ end
 function Tekscripts:CreateFloatButton(options)
     assert(typeof(options) == "table" and type(options.Text) == "string", "Invalid arguments for CreateFloatButton")
 
-    local Text = options.Text or "Button"
-    local Title = options.Title or "Arraste aqui" -- > cabeçote
+    local textRaw = options.Text or "Button"
+    local titleRaw = options.Title or "Arraste aqui" -- > Texto do cabeçote
     local Drag = options.Drag ~= false -- > default true
     local Visible = options.Visible ~= false -- > default true
     local Pos = options.Pos or UDim2.new(0.5, 0, 0.5, 0)
@@ -4366,18 +4472,19 @@ function Tekscripts:CreateFloatButton(options)
     local player = game:GetService("Players").LocalPlayer
     local playerGui = player:WaitForChild("PlayerGui")
 
-    -- > Verifica se já existe um ScreenGui para FloatButtons
+    -- > Verifica ou cria o ScreenGui para FloatButtons
     local screenGui = playerGui:FindFirstChild("TekscriptsFloatGui")
     if not screenGui then
         screenGui = Instance.new("ScreenGui")
         screenGui.Name = "TekscriptsFloatGui"
         screenGui.ResetOnSpawn = false
+        screenGui.DisplayOrder = 100 -- > Garante que fique acima de outros menus
         screenGui.Parent = playerGui
     end
 
     -- > Container do botão flutuante
     local container = Instance.new("Frame")
-    container.Size = UDim2.new(0, 120, 0, Drag and 60 or 40) -- > aumenta se tiver cabeçote
+    container.Size = UDim2.new(0, 120, 0, Drag and 60 or 40)
     container.Position = Pos
     container.AnchorPoint = Vector2.new(0.5, 0.5)
     container.BackgroundTransparency = 1
@@ -4386,43 +4493,48 @@ function Tekscripts:CreateFloatButton(options)
 
     -- > Cabeçote para arrastar
     local header
+    local headerLocaleConn = nil
     if Drag then
         header = Instance.new("TextLabel")
         header.Size = UDim2.new(1, 0, 0, 20)
         header.Position = UDim2.new(0, 0, 0, 0)
-        header.Text = Title
         header.Font = Enum.Font.Gotham
         header.TextSize = 12
-        header.TextColor3 = DESIGN.ComponentTextColor
-        header.BackgroundColor3 = DESIGN.InputBackgroundColor
+        header.TextColor3 = DESIGN.ComponentTextColor or Color3.fromRGB(255, 255, 255)
+        header.BackgroundColor3 = DESIGN.InputBackgroundColor or Color3.fromRGB(40, 40, 40)
         header.Parent = container
 
         local cornerHeader = Instance.new("UICorner")
-        cornerHeader.CornerRadius = UDim.new(0, DESIGN.CornerRadius / 2)
+        cornerHeader.CornerRadius = UDim.new(0, (DESIGN.CornerRadius or 8) / 2)
         cornerHeader.Parent = header
+        
+        -- > Tradução dinâmica do cabeçote
+        headerLocaleConn = Tekscripts.Localization:_ApplyDynamicLocalization(header, titleRaw)
     end
 
     -- > Botão principal
     local button = Instance.new("TextButton")
     button.Size = UDim2.new(1, 0, 0, 40)
     button.Position = Drag and UDim2.new(0, 0, 0, 20) or UDim2.new(0, 0, 0, 0)
-    button.Text = Text
     button.Font = Enum.Font.Gotham
     button.TextSize = 14
-    button.BackgroundColor3 = DESIGN.InputBackgroundColor
-    button.TextColor3 = DESIGN.InputTextColor
+    button.BackgroundColor3 = DESIGN.InputBackgroundColor or Color3.fromRGB(40, 40, 40)
+    button.TextColor3 = DESIGN.InputTextColor or Color3.fromRGB(255, 255, 255)
     button.AutoButtonColor = false
     button.Parent = container
 
     local cornerButton = Instance.new("UICorner")
-    cornerButton.CornerRadius = UDim.new(0, DESIGN.CornerRadius)
+    cornerButton.CornerRadius = UDim.new(0, DESIGN.CornerRadius or 8)
     cornerButton.Parent = button
 
     local stroke = Instance.new("UIStroke")
     stroke.Thickness = 1
     stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    stroke.Color = DESIGN.HRColor
+    stroke.Color = DESIGN.HRColor or Color3.fromRGB(100, 100, 100)
     stroke.Parent = button
+    
+    -- > Tradução dinâmica do botão principal
+    local buttonLocaleConn = Tekscripts.Localization:_ApplyDynamicLocalization(button, textRaw)
 
     -- > Overlay para bloquear interações
     local overlay = Instance.new("Frame")
@@ -4430,93 +4542,56 @@ function Tekscripts:CreateFloatButton(options)
     overlay.BackgroundTransparency = 0.5
     overlay.Size = UDim2.new(1,0,1,0)
     overlay.Visible = false
+    overlay.ZIndex = 5
     overlay.Parent = button
 
---     Lógica de Drag Aprimorada (Desktop e Mobile)
+    -- > Lógica de Drag Aprimorada
     local dragConnection = nil
     local dragStartOffset = Vector2.new(0, 0)
     
-    -- > Função auxiliar para restringir a posição (Clamping)
     local function clampPosition(position)
-        local parentSize = container.Parent.AbsoluteSize
+        local parentSize = screenGui.AbsoluteSize
         local containerSize = container.AbsoluteSize
         local containerAnchor = container.AnchorPoint
         
-        -- > A posição que estamos trabalhando é o centro do frame (por causa do AnchorPoint)
         local minX = containerAnchor.X * containerSize.X
         local minY = containerAnchor.Y * containerSize.Y
-        
         local maxX = parentSize.X - ((1 - containerAnchor.X) * containerSize.X)
         local maxY = parentSize.Y - ((1 - containerAnchor.Y) * containerSize.Y)
         
-        -- > Garante que a posição Absoluta fique dentro dos limites
         local clampedX = math.clamp(position.X, minX, maxX)
         local clampedY = math.clamp(position.Y, minY, maxY)
 
-        -- > Converte a posição Absoluta de volta para UDim2
-        local scaleX = clampedX / parentSize.X
-        local scaleY = clampedY / parentSize.Y
-        
-        return UDim2.new(scaleX, 0, scaleY, 0)
+        return UDim2.new(clampedX / parentSize.X, 0, clampedY / parentSize.Y, 0)
     end
     
     local function getScreenVector2(input)
-        -- > Tenta usar Position, mas converte o Vector3 para Vector2.
-        -- > Para GUIs, a posição é Vector2(X, Y), ignorando Z.
         return Vector2.new(input.Position.X, input.Position.Y)
     end
     
     local function onInputChanged(input)
-        -- > Deve ser o MouseMovement ou o Touch que começou o drag
         if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-            
-            -- > ✅ CORREÇÃO FINAL: Usa a função auxiliar para garantir Vector2.
             local currentScreenPosition = getScreenVector2(input)
-            
-            -- > A nova posição absoluta do *centro* do container é: 
-            -- > Posição atual do input - offset inicial (do clique/toque ao centro)
             local newAbsoluteCenter = currentScreenPosition - dragStartOffset
-            
-            local clampedPosition = clampPosition(newAbsoluteCenter)
-            container.Position = clampedPosition
-        end
-    end
-
-    local function onInputEnded(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            if dragConnection then
-                dragConnection:Disconnect()
-                dragConnection = nil
-            end
+            container.Position = clampPosition(newAbsoluteCenter)
         end
     end
 
     if Drag and header then
         header.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                
-                -- > ✅ CORREÇÃO FINAL: Usa a função auxiliar para garantir Vector2.
                 local currentScreenPosition = getScreenVector2(input)
-                
-                -- > Calcula o offset do clique em relação ao *centro* do Container (ponto definido por .Position)
                 local absoluteCenter = container.AbsolutePosition + container.AbsoluteSize * container.AnchorPoint
-                dragStartOffset = currentScreenPosition - absoluteCenter -- > Usa o Vector2
+                dragStartOffset = currentScreenPosition - absoluteCenter
 
-                -- > Desconecta qualquer conexão de arrasto anterior
-                if dragConnection then
-                    dragConnection:Disconnect()
-                end
-
-                -- > Conecta o InputChanged para rastrear o movimento
+                if dragConnection then dragConnection:Disconnect() end
                 dragConnection = UserInputService.InputChanged:Connect(onInputChanged)
                 
-                -- > Conecta o InputEnded para parar o arrasto
                 local inputEndedConnection
                 inputEndedConnection = UserInputService.InputEnded:Connect(function(endInput)
-                    onInputEnded(endInput)
-                    -- > Desconecta o InputEnded assim que ele for disparado
-                    if inputEndedConnection then
-                        inputEndedConnection:Disconnect()
+                    if endInput.UserInputType == Enum.UserInputType.MouseButton1 or endInput.UserInputType == Enum.UserInputType.Touch then
+                        if dragConnection then dragConnection:Disconnect() dragConnection = nil end
+                        if inputEndedConnection then inputEndedConnection:Disconnect() end
                     end
                 end)
             end
@@ -4525,7 +4600,9 @@ function Tekscripts:CreateFloatButton(options)
     
     -- > Clique chama callback
     button.MouseButton1Click:Connect(function()
-        pcall(Callback)
+        if not overlay.Visible then
+            pcall(Callback)
+        end
     end)
 
     -- > API pública
@@ -4536,14 +4613,17 @@ function Tekscripts:CreateFloatButton(options)
     end
 
     function api:SetText(newText)
-        if typeof(newText) == "string" then
-            button.Text = newText
-        end
+        textRaw = newText or ""
+        -- > Reinicia a tradução dinâmica com o novo texto/chave
+        if buttonLocaleConn then buttonLocaleConn:Disconnect() end
+        buttonLocaleConn = Tekscripts.Localization:_ApplyDynamicLocalization(button, textRaw)
     end
 
     function api:SetTitle(newTitle)
-        if Drag and typeof(newTitle) == "string" then
-            header.Text = newTitle
+        if Drag and header then
+            titleRaw = newTitle or ""
+            if headerLocaleConn then headerLocaleConn:Disconnect() end
+            headerLocaleConn = Tekscripts.Localization:_ApplyDynamicLocalization(header, titleRaw)
         end
     end
 
@@ -4552,12 +4632,16 @@ function Tekscripts:CreateFloatButton(options)
     end
 
     function api:Destroy()
+        -- > Limpa conexões de tradução para evitar memory leaks
+        if buttonLocaleConn then buttonLocaleConn:Disconnect() end
+        if headerLocaleConn then headerLocaleConn:Disconnect() end
+        if dragConnection then dragConnection:Disconnect() end
+        
         container:Destroy()
     end
 
     -- > Registro de cores no tema
-    -- > *Presumi que 'RegisterThemeItem' e 'DESIGN' estão definidos em outro local*
-    if typeof(RegisterThemeItem) == "function" and typeof(DESIGN) == "table" then
+    if typeof(RegisterThemeItem) == "function" then
         RegisterThemeItem("InputBackgroundColor", button, "BackgroundColor3")
         RegisterThemeItem("InputTextColor", button, "TextColor3")
         RegisterThemeItem("HRColor", stroke, "Color")
@@ -4570,73 +4654,21 @@ function Tekscripts:CreateFloatButton(options)
     return api
 end
 
--- >// Adicionando o sistema de tradução direto dentro do Tekscripts
-Tekscripts.Localization = {
-    Enabled = true,
-    Prefix = "loc:",
-    DefaultLanguage = "en",
-    CurrentLanguage = "en",
-    Translations = {},
-
-    -- > API
-    Init = function(self, translations)
-        if type(translations) == "table" then
-            self.Translations = translations
-        end
-    end,
-
-    SetLanguage = function(self, lang)
-        if self.Translations[lang] then
-            self.CurrentLanguage = lang
-        else
-            warn("Idioma não encontrado: "..tostring(lang))
-        end
-    end,
-
-    GetLanguage = function(self)
-        return self.CurrentLanguage
-    end,
-
-    SetTranslations = function(self, lang, translations)
-        if type(translations) ~= "table" then return end
-        self.Translations[lang] = self.Translations[lang] or {}
-        for k,v in pairs(translations) do
-            self.Translations[lang][k] = v
-        end
-    end,
-
-    Get = function(self, key)
-        if not self.Enabled then return key end
-        if type(key) == "string" and key:sub(1,#self.Prefix) == self.Prefix then
-            key = key:sub(#self.Prefix+1)
-        end
-        local lang = self.CurrentLanguage
-        local t = self.Translations[lang] or self.Translations[self.DefaultLanguage]
-        return (t and t[key]) or key
-    end,
-
-    TranslateText = function(self, text)
-        if type(text) ~= "string" then return text end
-        if text:sub(1, #self.Prefix) == self.Prefix then
-            return self:Get(text)
-        end
-        return text
-    end,
-
-    SetEnabled = function(self, state)
-        self.Enabled = state and true or false
-    end
-}
-
 function Tekscripts:CreateSection(tab: any, options: { Title: string?, Open: boolean?, Fixed: boolean? })
     assert(type(tab) == "table" and tab.Container, "Invalid Tab object provided to CreateSection")
 
     local DESIGN = DESIGN or {}
-    local titleHeight = 45 -- > Aumentado para dar mais presença
-    local minClosedHeight = titleHeight -- > A altura mínima agora é igual à altura do título
+    local titleHeight = 45 
+    local minClosedHeight = titleHeight 
     local contentPadding = 10 
 
     local TweenService = game:GetService("TweenService")
+    local UserInputService = game:GetService("UserInputService")
+
+    -- > Configurações de estado e bloqueio
+    local open = options.Open ~= false
+    local fixed = options.Fixed == true
+    local dragThreshold = 5 -- > Pixels de tolerância para ignorar o clique em caso de deslize (scroll)
 
     -- > Container principal da section
     local sectionContainer = Instance.new("Frame")
@@ -4651,11 +4683,11 @@ function Tekscripts:CreateSection(tab: any, options: { Title: string?, Open: boo
     uicorner.CornerRadius = UDim.new(0, 8)
     uicorner.Parent = sectionContainer
 
-    -- > Frame do título
+    -- > Frame do título (Topbar)
     local titleFrame = Instance.new("Frame")
     titleFrame.BackgroundColor3 = DESIGN.ComponentBackground or Color3.fromRGB(40, 40, 40)
-    titleFrame.BackgroundTransparency = 0.2 -- > estado inicial normal
-    titleFrame.Size = UDim2.new(1, 0, 0, titleHeight) -- > Tamanho atualizado (45)
+    titleFrame.BackgroundTransparency = 0.2 
+    titleFrame.Size = UDim2.new(1, 0, 0, titleHeight) 
     titleFrame.Position = UDim2.new(0, 0, 0, 0)
     titleFrame.ZIndex = 2
     titleFrame.Active = true
@@ -4665,67 +4697,77 @@ function Tekscripts:CreateSection(tab: any, options: { Title: string?, Open: boo
     titleCorner.CornerRadius = UDim.new(0, 8)
     titleCorner.Parent = titleFrame
 
-    -- > Título
+    -- > Título com Localização Dinâmica
     local titleLabel = Instance.new("TextLabel")
-    titleLabel.Text = options.Title or ""
     titleLabel.Font = Enum.Font.GothamBold
-    titleLabel.TextSize = 18 -- > tamanho inicial normal
+    titleLabel.TextSize = 18 
     RegisterThemeItem("ComponentTextColor", titleLabel, "TextColor3")
-    titleLabel.TextColor3 = DESIGN.ComponentTextColor or Color3.fromRGB(230, 230, 230) -- > cor inicial normal
+    titleLabel.TextColor3 = DESIGN.ComponentTextColor or Color3.fromRGB(230, 230, 230) 
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.BackgroundTransparency = 1
-    titleLabel.Size = UDim2.new(1, -50, 0, 20) -- > Ajustado o X para deixar espaço para seta
-    
-    -- > Ajuste para centralizar verticalmente no frame de 45 de altura: (45 - 20) / 2 = 12.5
-    titleLabel.Position = UDim2.new(0, 10, 0.5, -10) -- > UDim2(0, 10, 0.5, -10) (0.5 é 50% do Y, -10 é metade de 20px)
-    
+    titleLabel.Size = UDim2.new(1, -50, 0, 20) 
+    titleLabel.Position = UDim2.new(0, 10, 0.5, -10) 
     titleLabel.ZIndex = 3
     titleLabel.Parent = titleFrame
+    
+    -- > Aplica tradução automática ao título
+    local titleLocaleConn = Tekscripts.Localization:_ApplyDynamicLocalization(titleLabel, options.Title or "")
 
-    -- > Indicador de seta
+    -- > Indicador de seta (Oculto se for Fixed)
     local arrowLabel = Instance.new("TextLabel")
     arrowLabel.Text = "▼"
     arrowLabel.Font = Enum.Font.GothamBold
     arrowLabel.TextSize = 14
+    arrowLabel.Visible = not fixed 
     RegisterThemeItem("ComponentTextColor", arrowLabel, "TextColor3")
-    arrowLabel.TextColor3 = DESIGN.ComponentTextColor or Color3.fromRGB(230, 230, 230) -- > cor inicial normal
+    arrowLabel.TextColor3 = DESIGN.ComponentTextColor or Color3.fromRGB(230, 230, 230) 
     arrowLabel.BackgroundTransparency = 1
     arrowLabel.Size = UDim2.new(0, 20, 0, 20)
-    
-    -- > Ajuste para centralizar verticalmente no frame de 45 de altura: (45 - 20) / 2 = 12.5
-    arrowLabel.Position = UDim2.new(1, -25, 0.5, -10) -- > UDim2(1, -25, 0.5, -10)
-    
+    arrowLabel.Position = UDim2.new(1, -25, 0.5, -10) 
     arrowLabel.ZIndex = 3
     arrowLabel.Parent = titleFrame
     arrowLabel.TextYAlignment = Enum.TextYAlignment.Center
 
-    -- > Linha separadora
-    local separatorLine = Instance.new("Frame")
-    RegisterThemeItem("HRColor", separatorLine, "BackgroundColor3")
-    separatorLine.BackgroundColor3 = DESIGN.HRColor or Color3.fromRGB(100, 100, 100)
-    separatorLine.Size = UDim2.new(1, -20, 0, 1)
-    separatorLine.Position = UDim2.new(0, 10, 0, titleHeight - 1)
-    separatorLine.BorderSizePixel = 0
-    separatorLine.ZIndex = 2
-    separatorLine.Parent = sectionContainer
-
-    -- > Lógica de Hover
+    -- > Lógica de Hover (Ignorada se Fixed estiver ativo)
     local function setHover(state)
+        if fixed then return end 
+
         local targetTransparency = state and 0 or 0.2
         local targetTextSize = state and 20 or 18
         local targetColor = state and (DESIGN.ComponentHoverColor or Color3.fromRGB(200, 200, 200))
                             or (DESIGN.ComponentTextColor or Color3.fromRGB(230, 230, 230))
         
-        -- > Garante que o estado inicial (false) use as cores normais
-        TweenService:Create(titleFrame, TweenInfo.new(0.15, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), { BackgroundTransparency = targetTransparency }):Play()
-        TweenService:Create(titleLabel, TweenInfo.new(0.15, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), { TextSize = targetTextSize, TextColor3 = targetColor }):Play()
-        TweenService:Create(arrowLabel, TweenInfo.new(0.15, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), { TextColor3 = targetColor }):Play()
+        TweenService:Create(titleFrame, TweenInfo.new(0.15, Enum.EasingStyle.Cubic), { BackgroundTransparency = targetTransparency }):Play()
+        TweenService:Create(titleLabel, TweenInfo.new(0.15, Enum.EasingStyle.Cubic), { TextSize = targetTextSize, TextColor3 = targetColor }):Play()
+        TweenService:Create(arrowLabel, TweenInfo.new(0.15, Enum.EasingStyle.Cubic), { TextColor3 = targetColor }):Play()
     end
 
     titleFrame.MouseEnter:Connect(function() setHover(true) end)
     titleFrame.MouseLeave:Connect(function() setHover(false) end)
 
-    -- > Container interno
+    -- > Sistema Anti-Deslize para o clique
+    local inputStartPos = Vector2.new(0,0)
+    
+    titleFrame.InputBegan:Connect(function(input)
+        if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+            inputStartPos = input.Position
+        end
+    end)
+
+    titleFrame.InputEnded:Connect(function(input)
+        if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+            if fixed then return end
+
+            local delta = (Vector2.new(input.Position.X, input.Position.Y) - Vector2.new(inputStartPos.X, inputStartPos.Y)).Magnitude
+            
+            -- > Aciona apenas se o movimento for mínimo (clique real, não swipe)
+            if delta < dragThreshold then
+                publicApi:Toggle()
+            end
+        end
+    end)
+
+    -- > Container de conteúdo e Layout
     local contentContainer = Instance.new("Frame")
     contentContainer.BackgroundTransparency = 1
     contentContainer.Size = UDim2.new(1, -20, 1, -titleHeight)
@@ -4753,90 +4795,67 @@ function Tekscripts:CreateSection(tab: any, options: { Title: string?, Open: boo
     overlayCorner.Parent = blockOverlay
 
     local blockLabel = Instance.new("TextLabel")
-    blockLabel.Text = "Bloqueado"
     blockLabel.Font = Enum.Font.GothamBold
     RegisterThemeItem("ComponentTextColor", blockLabel, "TextColor3")
     blockLabel.TextColor3 = DESIGN.ComponentTextColor or Color3.fromRGB(255, 255, 255)
     blockLabel.TextSize = 24
     blockLabel.BackgroundTransparency = 1
     blockLabel.Size = UDim2.new(1, 0, 1, 0)
-    blockLabel.TextXAlignment = Enum.TextXAlignment.Center
-    blockLabel.TextYAlignment = Enum.TextYAlignment.Center
-    blockLabel.TextWrapped = true
     blockLabel.ZIndex = 6
     blockLabel.Parent = blockOverlay
+    
+    -- > Suporte a tradução para a mensagem de bloqueio (Iniciado com "Bloqueado")
+    local blockLocaleConn = nil
 
-    -- > Atualiza overlay
-    local sizeConnection = contentContainer:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-        if blockOverlay.Visible then
-            blockOverlay.Size = UDim2.new(1, 0, 0, contentContainer.AbsoluteSize.Y)
-        end
-    end)
-
-    -- > Estados
-    local open = options.Open ~= false
-    local fixed = options.Fixed == true
-
+    -- > Atualização de Altura Dinâmica
     local function updateHeight()
         local contentHeight = layout.AbsoluteContentSize.Y
-        local targetOpenHeight = titleHeight + contentHeight + contentPadding
-        local targetHeight = open and targetOpenHeight or minClosedHeight
+        local isActuallyOpen = fixed or open 
+        local targetHeight = isActuallyOpen and (titleHeight + contentHeight + contentPadding) or minClosedHeight
         
         local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
         
         TweenService:Create(sectionContainer, tweenInfo, { Size = UDim2.new(1, 0, 0, targetHeight) }):Play()
-        local targetRotation = open and 180 or 0 
-        TweenService:Create(arrowLabel, tweenInfo, { Rotation = targetRotation }):Play()
+        
+        if not fixed then
+            local targetRotation = open and 180 or 0 
+            TweenService:Create(arrowLabel, tweenInfo, { Rotation = targetRotation }):Play()
+        end
 
-        if blockOverlay.Visible and open then
-            blockOverlay.Size = UDim2.new(1, 0, 0, contentHeight)
-        elseif not open then
-            TweenService:Create(blockOverlay, tweenInfo, { Size = UDim2.new(1, 0, 0, 0) }):Play()
+        if blockOverlay.Visible then
+            blockOverlay.Size = UDim2.new(1, 0, 0, isActuallyOpen and contentHeight or 0)
         end
     end
 
     layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateHeight)
     task.defer(updateHeight)
 
+    -- > API Pública do Componente
     local publicApi = {
         _instance = sectionContainer,
         _content = contentContainer,
         Components = {},
-        _blocked = false
+        _blocked = false,
+        _titleLocaleConn = titleLocaleConn,
+        _blockLocaleConn = blockLocaleConn
     }
 
-    function publicApi:_reapplyBackgrounds()
-        titleFrame.BackgroundColor3 = DESIGN.ComponentBackground or Color3.fromRGB(40, 40, 40)
-        blockOverlay.BackgroundColor3 = DESIGN.ComponentBackground or Color3.fromRGB(20, 20, 20)
-    end
-
-    RegisterThemeItem("ComponentBackground", publicApi, "_reapplyBackgrounds")
-
-    -- > API
-    -- > Função AddComponent atualizada para aceitar múltiplos argumentos
     function publicApi:AddComponent(...)
-        local components = { ... } -- > Captura todos os argumentos passados
-        local added = false -- > Flag para saber se algum componente foi adicionado
-        
+        local components = { ... }
         for _, component in ipairs(components) do
             if component and component._instance then
                 component._instance.Parent = contentContainer
                 table.insert(publicApi.Components, component)
-                added = true
-            else
-                warn("[Section] Componente inválido ou faltando '_instance' para AddComponent. Ignorando item:", component)
             end
         end
-
-        if added then
-            task.spawn(updateHeight) -- > Atualiza a altura apenas uma vez, se componentes foram adicionados
-        end
-        -- > Retorna a própria API para permitir chaining, se necessário (opcional)
+        updateHeight()
         return publicApi 
     end
 
     function publicApi:SetTitle(text)
-        titleLabel.Text = text or ""
+        -- > Atualiza o título e reinicia a conexão dinâmica
+        if self._titleLocaleConn then self._titleLocaleConn:Disconnect() end
+        self._titleLocaleConn = Tekscripts.Localization:_ApplyDynamicLocalization(titleLabel, text or "")
     end
 
     function publicApi:Open()
@@ -4853,35 +4872,26 @@ function Tekscripts:CreateSection(tab: any, options: { Title: string?, Open: boo
     end
 
     function publicApi:Toggle()
-        if open then
-            publicApi:Close()
-        else
-            publicApi:Open()
-        end
+        if fixed then return end 
+        if open then publicApi:Close() else publicApi:Open() end
     end
 
-    titleFrame.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or
-           input.UserInputType == Enum.UserInputType.Touch then
-            publicApi:Toggle()
-        end
-    end)
-
-    function publicApi:Block(state: boolean, message: string?)
+    function publicApi:Block(state, message)
         publicApi._blocked = state
-        blockLabel.Text = message or "Bloqueado"
-        blockOverlay.Visible = state and open
-        if state and open then
-            blockOverlay.Size = UDim2.new(1, 0, 0, contentContainer.AbsoluteSize.Y)
-        elseif not state and not open then
-            blockOverlay.Visible = false
-        end
+        
+        -- > Atualiza a tradução da mensagem de bloqueio
+        if self._blockLocaleConn then self._blockLocaleConn:Disconnect() end
+        self._blockLocaleConn = Tekscripts.Localization:_ApplyDynamicLocalization(blockLabel, message or "Bloqueado")
+        
+        blockOverlay.Visible = state and (fixed or open)
+        updateHeight()
     end
 
     function publicApi:Destroy()
-        if sizeConnection then
-            sizeConnection:Disconnect()
-        end
+        -- > Limpeza de conexões de localização para evitar leaks
+        if self._titleLocaleConn then self._titleLocaleConn:Disconnect() end
+        if self._blockLocaleConn then self._blockLocaleConn:Disconnect() end
+        
         for _, comp in ipairs(publicApi.Components) do
             if comp.Destroy then comp:Destroy() end
         end
@@ -4918,9 +4928,6 @@ function Tekscripts:CreateTabContainer(parentTab: any, options: { Title: string?
     uicorner.CornerRadius = UDim.new(0, 8)
     uicorner.Parent = container
 
-
-    
-
     local tabListContainer = Instance.new("ScrollingFrame")
     tabListContainer.BackgroundTransparency = 1
     tabListContainer.Size = UDim2.new(1, 0, 0, tabHeight)
@@ -4944,8 +4951,6 @@ function Tekscripts:CreateTabContainer(parentTab: any, options: { Title: string?
         tabListContainer.CanvasSize = UDim2.new(0, tabLayout.AbsoluteContentSize.X + 5, 0, 0)
     end)
 
-    
-
     local contentContainer = Instance.new("Frame")
     contentContainer.BackgroundTransparency = 1
     contentContainer.Size = UDim2.new(1, 0, 1, -tabHeight)
@@ -4963,7 +4968,6 @@ function Tekscripts:CreateTabContainer(parentTab: any, options: { Title: string?
             prevTab.ContentFrame.Visible = false
             TweenService:Create(prevTab.Button, TweenInfo.new(0.15), { BackgroundTransparency = 1, TextColor3 = inactiveTextColor }):Play()
 
-            -- > Desativa a borda (UIStroke)
             if prevTab.Border then
                 prevTab.Border.Enabled = false
             end
@@ -4971,14 +4975,9 @@ function Tekscripts:CreateTabContainer(parentTab: any, options: { Title: string?
 
         local newTab = tabs[tabName]
         if newTab then
-            -- > Ativa o conteúdo da nova aba
             newTab.ContentFrame.Visible = true
-
-            -- > Ativa o estado visual do novo botão
-            -- > O BackgroundTransparency é o preenchimento que você estava vendo.
             TweenService:Create(newTab.Button, TweenInfo.new(0.15), { BackgroundTransparency = 0.8, TextColor3 = activeTextColor }):Play()
 
-            -- > Ativa a borda (UIStroke)
             if newTab.Border then
                 newTab.Border.Color = activeBorderColor
                 newTab.Border.Enabled = true
@@ -4992,7 +4991,7 @@ function Tekscripts:CreateTabContainer(parentTab: any, options: { Title: string?
     local function createTabButton(tabName)
         local button = Instance.new("TextButton")
         button.Name = tabName
-        button.Text = tabName
+        -- > O texto inicial é definido pela função de tradução dinâmica abaixo
         button.Font = Enum.Font.GothamBold
         button.TextSize = 16
         button.TextXAlignment = Enum.TextXAlignment.Center
@@ -5006,53 +5005,47 @@ function Tekscripts:CreateTabContainer(parentTab: any, options: { Title: string?
         RegisterThemeItem("ComponentBackground", button, "BackgroundColor3")
         button.BackgroundColor3 = DESIGN.ComponentBackground or Color3.fromRGB(40, 40, 40)
 
-        -- > ✅ SOLUÇÃO 1.1: Adiciona UICorner para bordas suaves no botão
+        -- > Aplica Localização Dinâmica ao Botão (Usa tabName como chave)
+        local locConn = Tekscripts.Localization:_ApplyDynamicLocalization(button, tabName)
+
         local buttonCorner = Instance.new("UICorner")
-        buttonCorner.CornerRadius = UDim.new(0, 6) -- > Ajuste para o valor que você preferir
+        buttonCorner.CornerRadius = UDim.new(0, 6)
         buttonCorner.Parent = button
 
-        -- > ✅ SOLUÇÃO 1.2: Adiciona UIStroke para a borda
         local buttonBorder = Instance.new("UIStroke")
         buttonBorder.Thickness = 1
-        -- > Muda o ApplyStrokeMode para Border. Isso faz o stroke envolver todo o perímetro do botão.
         buttonBorder.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
         RegisterThemeItem("HRColor", buttonBorder, "Color")
         buttonBorder.Enabled = false
         buttonBorder.Parent = button
 
-        -- > Padding do Texto
         local textPadding = Instance.new("UIPadding")
         textPadding.PaddingLeft = UDim.new(0, 5)
         textPadding.PaddingRight = UDim.new(0, 5)
         textPadding.Parent = button
 
-        -- > Lógica de Hover (Visual)
         local hoverColor = DESIGN.ComponentHoverColor or Color3.fromRGB(200, 200, 200)
         local inactiveTextColor = DESIGN.ComponentTextColor or Color3.fromRGB(180, 180, 180)
 
         button.MouseEnter:Connect(function()
-            -- > ✅ SOLUÇÃO 2: Só aplica o HOVER se a aba NÃO for a aba ativa
             if tabName ~= activeTab then
                 TweenService:Create(button, TweenInfo.new(0.1), { BackgroundTransparency = 0.9, TextColor3 = hoverColor }):Play()
             end
         end)
 
         button.MouseLeave:Connect(function()
-            -- > ✅ SOLUÇÃO 2: Só remove o HOVER se a aba NÃO for a aba ativa
             if tabName ~= activeTab then
                 TweenService:Create(button, TweenInfo.new(0.1), { BackgroundTransparency = 1, TextColor3 = inactiveTextColor }):Play()
             end
         end)
 
-        -- > Lógica de Clique
         button.MouseButton1Click:Connect(function()
             switchToTab(tabName)
         end)
 
         button.Parent = tabListContainer
 
-        -- > Retorna o botão E a borda (UIStroke)
-        return button, buttonBorder
+        return button, buttonBorder, locConn
     end
     
     local publicApi = {
@@ -5061,7 +5054,6 @@ function Tekscripts:CreateTabContainer(parentTab: any, options: { Title: string?
     }
 
     function publicApi:AddTab(tabName: string, icon: string?)
-        -- > Verifica se a tab já existe
         if tabs[tabName] then
             warn("Tab '" .. tabName .. "' já existe.")
             return tabs[tabName].PublicAPI
@@ -5087,34 +5079,38 @@ function Tekscripts:CreateTabContainer(parentTab: any, options: { Title: string?
             tabContentFrame.CanvasSize = UDim2.new(0, 0, 0, tabContentLayout.AbsoluteContentSize.Y + contentPadding)
         end)
 
-        -- > 2. Cria o botão da aba e a Borda
-        local tabButton, buttonBorder = createTabButton(tabName)
+        -- > Cria o botão da aba, a Borda e recebe a conexão de localização
+        local tabButton, buttonBorder, locConn = createTabButton(tabName)
 
-        -- > 3. Cria a API da Tab
         local tabApi = {
             _instance = tabContentFrame,
             Components = {},
+            _locConn = locConn -- > Persistência da conexão para limpeza
         }
 
-        -- > Função AddComponent (suporta múltiplos)
         function tabApi:AddComponent(...)
             local components = { ... }
-            local added = false
-
             for _, component in ipairs(components) do
                 if component and component._instance then
                     component._instance.Parent = tabContentFrame
                     table.insert(tabApi.Components, component)
-                    added = true
                 else
-                    warn("[TabContainer] Componente inválido ou faltando '_instance' para AddComponent na tab:", tabName)
+                    warn("[TabContainer] Componente inválido na tab:", tabName)
                 end
             end
-
             return tabApi
         end
 
-        -- > 4. Armazena e inicializa
+        function tabApi:Destroy()
+            if tabApi._locConn then tabApi._locConn:Disconnect() end
+            for _, comp in ipairs(tabApi.Components) do
+                if comp.Destroy then comp:Destroy() end
+            end
+            tabButton:Destroy()
+            tabContentFrame:Destroy()
+        end
+
+        -- > Armazena
         tabs[tabName] = {
             Button = tabButton,
             Border = buttonBorder,
@@ -5122,7 +5118,6 @@ function Tekscripts:CreateTabContainer(parentTab: any, options: { Title: string?
             PublicAPI = tabApi
         }
 
-        -- > Se for a primeira aba, ativa-a
         if not activeTab then
             switchToTab(tabName)
         end
@@ -5137,6 +5132,13 @@ function Tekscripts:CreateTabContainer(parentTab: any, options: { Title: string?
         else
             warn("Tab '" .. tabName .. "' não encontrada.")
         end
+    end
+
+    function publicApi:Destroy()
+        for _, tabApi in ipairs(publicApi.Tabs) do
+            tabApi:Destroy()
+        end
+        container:Destroy()
     end
 
     return publicApi
@@ -5210,13 +5212,12 @@ function Tekscripts:CreateLabel(tab, options)
 
     local verticalLayout = Instance.new("UIListLayout", textContainer)
     verticalLayout.Padding = UDim.new(0, 2)
-    verticalLayout.SortOrder = Enum.SortOrder.LayoutOrder -- > Garante a ordem correta
+    verticalLayout.SortOrder = Enum.SortOrder.LayoutOrder
     verticalLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 
-    -- > TÍTULO (Sempre no topo)
+    -- > TÍTULO
     local titleLabel = Instance.new("TextLabel")
     titleLabel.Name = "Title"
-    titleLabel.Text = tostring(options.Title)
     titleLabel.BackgroundTransparency = 1
     titleLabel.Font = Enum.Font.GothamBold
     titleLabel.TextSize = (mode == "max" and 15 or 14)
@@ -5225,24 +5226,40 @@ function Tekscripts:CreateLabel(tab, options)
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.Size = UDim2.new(1, 0, 0, 0)
     titleLabel.AutomaticSize = Enum.AutomaticSize.Y
-    titleLabel.LayoutOrder = 1 -- > Define como primeiro elemento
+    titleLabel.LayoutOrder = 1 
     titleLabel.Parent = textContainer
 
     if not options.Color then
         RegisterThemeItem("ComponentTextColor", titleLabel, "TextColor3")
     end
 
-    -- > API
-    local component = {}
+    -- > API e Gerenciamento de Conexões
+    local component = {
+        _instance = outerBox,
+        _titleConn = nil,
+        _descConn = nil
+    }
     local imageLabel = nil
     local descLabel = nil
 
+    -- > Aplicação inicial da localização no Título
+    component._titleConn = Tekscripts.Localization:_ApplyDynamicLocalization(titleLabel, options.Title)
+
     function component:SetText(val)
-        titleLabel.Text = tostring(val or "")
+        -- > Se mudar o texto, precisamos renovar a conexão dinâmica
+        if component._titleConn then component._titleConn:Disconnect() end
+        component._titleConn = Tekscripts.Localization:_ApplyDynamicLocalization(titleLabel, tostring(val or ""))
     end
 
     function component:SetDescription(val)
         local text = tostring(val or "")
+        
+        -- > Limpa conexão anterior se existir
+        if component._descConn then 
+            component._descConn:Disconnect()
+            component._descConn = nil
+        end
+
         if text == "" then
             if descLabel then descLabel.Visible = false end
             return
@@ -5258,12 +5275,14 @@ function Tekscripts:CreateLabel(tab, options)
             descLabel.TextXAlignment = Enum.TextXAlignment.Left
             descLabel.Size = UDim2.new(1, 0, 0, 0)
             descLabel.AutomaticSize = Enum.AutomaticSize.Y
-            descLabel.LayoutOrder = 2 -- > Define como segundo elemento (abaixo do título)
+            descLabel.LayoutOrder = 2 
             descLabel.Parent = textContainer
             descLabel.TextColor3 = Color3.fromRGB(170, 170, 175) 
         end
+        
         descLabel.Visible = true
-        descLabel.Text = text
+        -- > Aplica localização dinâmica na descrição
+        component._descConn = Tekscripts.Localization:_ApplyDynamicLocalization(descLabel, text)
     end
 
     function component:SetImage(urlOrId)
@@ -5279,7 +5298,7 @@ function Tekscripts:CreateLabel(tab, options)
             imageLabel.Size = UDim2.new(0, IMAGE_SIZE, 0, IMAGE_SIZE) 
             imageLabel.BackgroundTransparency = 1
             imageLabel.ScaleType = Enum.ScaleType.Fit
-            imageLabel.LayoutOrder = 1 -- > Ícone à esquerda
+            imageLabel.LayoutOrder = 1 
             imageLabel.Parent = contentFrame
             
             local imgCorner = Instance.new("UICorner", imageLabel)
@@ -5300,18 +5319,28 @@ function Tekscripts:CreateLabel(tab, options)
         outerBox.Visible = state
     end
 
+    function component:Destroy()
+        -- > Limpeza de cache e persistência de memória
+        if component._titleConn then component._titleConn:Disconnect() end
+        if component._descConn then component._descConn:Disconnect() end
+        
+        if outerBox then
+            outerBox:Destroy()
+        end
+    end
+
     -- > Inicialização
     if options.Desc then component:SetDescription(options.Desc) end
     if options.Image then component:SetImage(options.Image) end
 
-    table.insert(tab.Components, outerBox)
+    table.insert(tab.Components, component)
     return component
 end
 
 function Tekscripts:CreateDivider(tab, options)
     assert(type(tab) == "table" and tab.Container, "Invalid Tab object provided to CreateDividerBox")
 
-    local text = options and options.Text or "Título"
+    local textRaw = options and options.Text or "Título"
     local height = options and options.Height or 28
     local boxColor = options and options.Color or DESIGN.ComponentBackground
     local txtColor = options and options.TextColor or DESIGN.ComponentTextColor
@@ -5334,7 +5363,7 @@ function Tekscripts:CreateDivider(tab, options)
     box.Parent = container
 
     local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, DESIGN.CornerRadius)
+    corner.CornerRadius = UDim.new(0, DESIGN.CornerRadius or 8)
     corner.Parent = box
 
     -- > PADDING INTERNO (Evita o texto colado nas bordas)
@@ -5347,7 +5376,6 @@ function Tekscripts:CreateDivider(tab, options)
     local label = Instance.new("TextLabel")
     label.Name = "Label"
     label.BackgroundTransparency = 1
-    label.Text = text
     label.Font = Enum.Font.GothamBold
     label.TextSize = 15
     label.TextScaled = true -- > Faz o texto diminuir se for muito grande
@@ -5359,22 +5387,28 @@ function Tekscripts:CreateDivider(tab, options)
     label.ZIndex = 2 -- > Garante que fique acima de qualquer fundo ou linha
     label.Parent = box
 
+    -- > Aplicação de Localização Dinâmica (Persistência de idioma)
+    -- > O componente passa a escutar mudanças no Localization._Changed automaticamente
+    local locConnection = Tekscripts.Localization:_ApplyDynamicLocalization(label, textRaw)
+
     -- > LIMITADOR DE TAMANHO DE TEXTO
-    -- > Garante que o texto não fique gigante (máximo 15) mas possa diminuir
     local sizeConstraint = Instance.new("UITextSizeConstraint")
     sizeConstraint.MaxTextSize = 15
     sizeConstraint.MinTextSize = 8
     sizeConstraint.Parent = label
 
-    -- > API
+    -- > API PÚBLICA
     local api = {
         _instance = container,
         _box = box,
         _label = label,
+        _locConn = locConnection -- > Cache da conexão para limpeza
     }
 
+    -- > Função para alterar o texto manualmente mantendo suporte a tradução
     function api:SetText(newText)
-        label.Text = newText
+        if self._locConn then self._locConn:Disconnect() end
+        self._locConn = Tekscripts.Localization:_ApplyDynamicLocalization(label, newText)
     end
 
     function api:SetColor(newColor)
@@ -5385,9 +5419,15 @@ function Tekscripts:CreateDivider(tab, options)
         label.TextColor3 = newColor
     end
 
+    -- > Limpeza de recursos e bugs de memória
     function api:Destroy()
+        if self._locConn then
+            self._locConn:Disconnect()
+            self._locConn = nil
+        end
         if container then
             container:Destroy()
+            container = nil
         end
     end
 
@@ -5459,7 +5499,6 @@ function Tekscripts:CreateToggle(tab: any, options: { Text: string, Desc: string
     listLayout.Parent = textContainer
 
     local label = Instance.new("TextLabel")
-    label.Text = options.Text
     label.Size = UDim2.new(1, 0, 0, 0)
     label.AutomaticSize = Enum.AutomaticSize.Y
     label.BackgroundTransparency = 1
@@ -5471,10 +5510,13 @@ function Tekscripts:CreateToggle(tab: any, options: { Text: string, Desc: string
     label.Parent = textContainer
     RegisterThemeItem("ComponentTextColor", label, "TextColor3")
 
+    -- > Localização dinâmica do Título
+    local titleConn = Tekscripts.Localization:_ApplyDynamicLocalization(label, options.Text)
+
     local descLabel
+    local descConn
     if options.Desc and options.Desc ~= "" then
         descLabel = Instance.new("TextLabel")
-        descLabel.Text = options.Desc
         descLabel.Size = UDim2.new(1, 0, 0, 0)
         descLabel.AutomaticSize = Enum.AutomaticSize.Y
         descLabel.BackgroundTransparency = 1
@@ -5485,6 +5527,9 @@ function Tekscripts:CreateToggle(tab: any, options: { Text: string, Desc: string
         descLabel.TextXAlignment = Enum.TextXAlignment.Left
         descLabel.LayoutOrder = 2
         descLabel.Parent = textContainer
+
+        -- > Localização dinâmica da Descrição
+        descConn = Tekscripts.Localization:_ApplyDynamicLocalization(descLabel, options.Desc)
     end
 
     -- >  3. CONTROLE VISUAL 
@@ -5544,15 +5589,11 @@ function Tekscripts:CreateToggle(tab: any, options: { Text: string, Desc: string
     end
 
     local function pulseError()
-        if not useFeedback then return end -- > Só executa se FeedbackDebug for true
-        
+        if not useFeedback then return end 
         isBlockedByError = true
-        
-        -- > Feedback Visual Instantâneo
         borderStroke.Transparency = 0
         errorDot.BackgroundTransparency = 0
         
-        -- > Tremor de 0.3 segundos
         local originalPos = outerBox.Position
         task.spawn(function()
             for i = 1, 6 do
@@ -5562,7 +5603,6 @@ function Tekscripts:CreateToggle(tab: any, options: { Text: string, Desc: string
             outerBox.Position = originalPos
         end)
 
-        -- > Esconde tudo em 1 segundo total (0.7s após o tremor)
         task.delay(0.7, function()
             isBlockedByError = false
             local fadeInfo = TweenInfo.new(0.3, Enum.EasingStyle.Linear)
@@ -5573,7 +5613,6 @@ function Tekscripts:CreateToggle(tab: any, options: { Text: string, Desc: string
 
     local function toggle(newState, skipCallback)
         if isLocked or isBlockedByError then return end
-        
         state = newState
         animateControl(state)
         
@@ -5584,7 +5623,6 @@ function Tekscripts:CreateToggle(tab: any, options: { Text: string, Desc: string
             
             if not success then
                 pulseError()
-                -- > Reverte estado visual
                 state = not newState
                 task.delay(0.1, function() animateControl(state) end)
             end
@@ -5598,7 +5636,9 @@ function Tekscripts:CreateToggle(tab: any, options: { Text: string, Desc: string
     -- >  5. API PÚBLICA 
     local publicApi = {
         _instance = outerBox,
-        _connections = connections
+        _connections = connections,
+        _titleConn = titleConn,
+        _descConn = descConn
     }
 
     function publicApi:SetState(s)
@@ -5612,6 +5652,10 @@ function Tekscripts:CreateToggle(tab: any, options: { Text: string, Desc: string
     function publicApi:SetBlocked(b) isBlockedByError = b end
 
     function publicApi:Destroy()
+        -- > Limpeza de conexões de localização
+        if self._titleConn then self._titleConn:Disconnect() end
+        if self._descConn then self._descConn:Disconnect() end
+        
         for _, c in pairs(connections) do c:Disconnect() end
         outerBox:Destroy()
         if tab.Components then
@@ -5627,17 +5671,16 @@ end
 
 function Tekscripts:Notify(options)
     -- >  1. PARÂMETROS E CONFIGURAÇÕES 
-    local Title = options.Title or options.Text or "Notificação"
-    local Desc = options.Desc or "Sem descrição."
+    local TitleRaw = options.Title or options.Text or "Notificação"
+    local DescRaw = options.Desc or "Sem descrição."
     local Duration = options.Duration or 5 
     local IconID = options.Icon
-    local PosMode = options.Position or "Below" -- > "Above" ou "Below"
+    local PosMode = options.Position or "Below" 
     
     local TweenService = game:GetService("TweenService")
     local LocalPlayer = game:GetService("Players").LocalPlayer
     local Camera = workspace.CurrentCamera
     
-    -- > Ajustes de Compactação (Mobile vs PC)
     local isSmallScreen = Camera.ViewportSize.X < 600
     local maxWidth = isSmallScreen and 230 or 270
     local textSizeTitle = isSmallScreen and 13 or 14
@@ -5658,23 +5701,20 @@ function Tekscripts:Notify(options)
             holder.Name = "Holder"
             holder.BackgroundTransparency = 1
             
-            -- > Lógica de Posicionamento Vertical
             if PosMode == "Above" then
                 holder.AnchorPoint = Vector2.new(1, 0)
-                holder.Position = UDim2.new(1, -15, 0, 50) -- > Topo Direito
+                holder.Position = UDim2.new(1, -15, 0, 50) 
             else
                 holder.AnchorPoint = Vector2.new(1, 1)
-                holder.Position = UDim2.new(1, -15, 1, -15) -- > Baixo Direito
+                holder.Position = UDim2.new(1, -15, 1, -15) 
             end
             
             holder.Size = UDim2.new(0, maxWidth, 0.8, 0)
             
             local layout = Instance.new("UIListLayout", holder)
-            -- > Se for Above, as novas aparecem em cima. Se for Below, embaixo.
             layout.VerticalAlignment = (PosMode == "Above") and Enum.VerticalAlignment.Top or Enum.VerticalAlignment.Bottom
             layout.HorizontalAlignment = Enum.HorizontalAlignment.Right
             layout.Padding = UDim.new(0, 8)
-            -- > SortOrder garante que a ordem de criação dite a posição
             layout.SortOrder = Enum.SortOrder.Name 
         end
         return container.Holder
@@ -5682,7 +5722,6 @@ function Tekscripts:Notify(options)
 
     -- >  3. CONSTRUÇÃO DO CARD 
     local box = Instance.new("CanvasGroup")
-    -- > Nomeamos com tick() para o UIListLayout organizar por ordem de tempo
     box.Name = tostring(tick())
     box.Size = UDim2.new(1, 0, 0, 0)
     box.AutomaticSize = Enum.AutomaticSize.Y
@@ -5693,7 +5732,6 @@ function Tekscripts:Notify(options)
     RegisterThemeItem("NotifyBackground", box, "BackgroundColor3")
     Instance.new("UICorner", box).CornerRadius = UDim.new(0, 6)
 
-    -- > Borda sutil (Stroke)
     local stroke = Instance.new("UIStroke", box)
     stroke.Transparency = 0.85
     RegisterThemeItem("AccentColor", stroke, "Color")
@@ -5709,27 +5747,30 @@ function Tekscripts:Notify(options)
     padding.PaddingLeft = UDim.new(0, 10)
     padding.PaddingRight = UDim.new(0, 10)
 
-    -- > Conteúdo (Título + Desc)
+    -- > Título com Tradução
     local titleLabel = Instance.new("TextLabel", contentFrame)
     titleLabel.Size = UDim2.new(1, 0, 0, 18)
-    titleLabel.Text = Title
     titleLabel.Font = Enum.Font.GothamBold
     titleLabel.TextSize = textSizeTitle
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.BackgroundTransparency = 1
     RegisterThemeItem("TitleColor", titleLabel, "TextColor3")
+    -- > Aplica localização dinâmica (embora a notificação dure pouco, garante consistência no spawn)
+    local tConn = Tekscripts.Localization:_ApplyDynamicLocalization(titleLabel, TitleRaw)
 
+    -- > Descrição com Tradução
     local descLabel = Instance.new("TextLabel", contentFrame)
     descLabel.Position = UDim2.new(0, 0, 0, 20)
     descLabel.Size = UDim2.new(1, 0, 0, 0)
     descLabel.AutomaticSize = Enum.AutomaticSize.Y
-    descLabel.Text = Desc
     descLabel.Font = Enum.Font.Gotham
     descLabel.TextSize = textSizeDesc
     descLabel.TextWrapped = true
     descLabel.TextXAlignment = Enum.TextXAlignment.Left
     descLabel.BackgroundTransparency = 1
     RegisterThemeItem("NotifyTextColor", descLabel, "TextColor3")
+    -- > Aplica localização dinâmica
+    local dConn = Tekscripts.Localization:_ApplyDynamicLocalization(descLabel, DescRaw)
 
     -- > Barra de Progresso
     local barBG = Instance.new("Frame", box)
@@ -5741,7 +5782,7 @@ function Tekscripts:Notify(options)
     progressBar.Size = UDim2.new(1, 0, 1, 0)
     RegisterThemeItem("AccentColor", progressBar, "BackgroundColor3")
 
-    -- >  4. ANIMAÇÕES 
+    -- >  4. ANIMAÇÕES E LIMPEZA 
     local tweenInfo = TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
     
     TweenService:Create(box, tweenInfo, { Position = UDim2.new(0, 0, 0, 0), GroupTransparency = 0 }):Play()
@@ -5749,6 +5790,10 @@ function Tekscripts:Notify(options)
 
     task.delay(Duration, function()
         if box and box.Parent then
+            -- > Desconecta antes de destruir para evitar chamadas fantasmas
+            if tConn then tConn:Disconnect() end
+            if dConn then dConn:Disconnect() end
+
             local fadeOut = TweenService:Create(box, tweenInfo, { 
                 Position = UDim2.new(1.2, 0, 0, 0),
                 GroupTransparency = 1 
@@ -5771,7 +5816,7 @@ function Tekscripts:CreateSlider(tab: any, options: {
 
     -- > Inicialização de opções
     options = options or {}
-    local title = options.Text or "Slider"
+    local titleRaw = options.Text or "Slider" -- > Mantido o texto original para tradução
     local minv = tonumber(options.Min) or 0
     local maxv = tonumber(options.Max) or 100
     local step = tonumber(options.Step) or 1
@@ -5801,7 +5846,7 @@ function Tekscripts:CreateSlider(tab: any, options: {
 
     -- > Base visual principal
     local box = Instance.new("Frame")
-    box.Name = "Slider_" .. title
+    box.Name = "Slider_Component"
     box.Size = UDim2.new(1, 0, 0, 0)
     box.AutomaticSize = Enum.AutomaticSize.Y 
     RegisterThemeItem("ComponentBackground", box, "BackgroundColor3")
@@ -5840,7 +5885,7 @@ function Tekscripts:CreateSlider(tab: any, options: {
     listLayout.SortOrder = Enum.SortOrder.LayoutOrder
     listLayout.Padding = UDim.new(0, 8) 
 
-    -- > Header (Título com quebra de linha dinâmica)
+    -- > Header (Título com tradução dinâmica)
     local headerFrame = Instance.new("Frame")
     headerFrame.Name = "Header"
     headerFrame.Size = UDim2.new(1, 0, 0, 0)
@@ -5856,14 +5901,16 @@ function Tekscripts:CreateSlider(tab: any, options: {
     titleLabel.AutomaticSize = Enum.AutomaticSize.Y 
     titleLabel.Font = Enum.Font.GothamMedium
     titleLabel.TextSize = 14
-    titleLabel.TextWrapped = true -- > Ativa a quebra de linha
-    titleLabel.TextTruncate = Enum.TextTruncate.None -- > Garante que NÃO coloque "..."
+    titleLabel.TextWrapped = true 
+    titleLabel.TextTruncate = Enum.TextTruncate.None 
     RegisterThemeItem("ComponentTextColor", titleLabel, "TextColor3")
     titleLabel.TextColor3 = DESIGN.ComponentTextColor
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.TextYAlignment = Enum.TextYAlignment.Top
-    titleLabel.Text = title
     titleLabel.Parent = headerFrame
+
+    -- > Inicia Tradução Dinâmica do Título
+    local localeConn = Tekscripts.Localization:_ApplyDynamicLocalization(titleLabel, titleRaw)
 
     -- > Track Container (Slider e Badge de Valor)
     local trackContainer = Instance.new("Frame")
@@ -5960,6 +6007,7 @@ function Tekscripts:CreateSlider(tab: any, options: {
     local publicApi = {
         _instance = box,
         _connections = connections,
+        _localeConn = localeConn, -- > Armazenado para persistência e limpeza
         _onChanged = {},
         _locked = false,
     }
@@ -6065,6 +6113,8 @@ function Tekscripts:CreateSlider(tab: any, options: {
     end
 
     function publicApi.Destroy()
+        -- > Limpeza de conexões e cache
+        if publicApi._localeConn then publicApi._localeConn:Disconnect() end
         for _, c in ipairs(connections) do c:Disconnect() end
         if box then box:Destroy() end
     end
