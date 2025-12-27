@@ -1518,7 +1518,7 @@ function Tekscripts:CreateTab(options: TabOptions)
     return tab
 end
 
--- > > Cria e configura o botão visual com layout inteligente e auto-adaptável
+-- > > Cria e configura o botão visual compacto e auto-adaptável
 function Tab:_CreateTabButton(parentWindow)
     local hasIcon = self.IconId ~= nil
     
@@ -1526,55 +1526,58 @@ function Tab:_CreateTabButton(parentWindow)
     self.Button = button
     button.Name = self.Name
     button.Text = "" 
-    -- > AutomaticSize em Y permite expansão apenas se necessário (multilinha)
-    button.Size = UDim2.new(1, -10, 0, DESIGN.TabButtonHeight)
-    button.AutomaticSize = Enum.AutomaticSize.Y
+    -- > AutomaticSize em XY faz o box "abraçar" o conteúdo sem sobras
+    button.Size = UDim2.new(0, 0, 0, DESIGN.TabButtonHeight)
+    button.AutomaticSize = Enum.AutomaticSize.XY
     button.BackgroundColor3 = DESIGN.TabInactiveColor
     button.BorderSizePixel = 0
     button.AutoButtonColor = false
     button.ZIndex = 3
     button.Parent = parentWindow.TabContainer
 
-    -- > Garante consistência de altura mínima (persistência de layout)
+    -- > Mantém apenas a altura mínima para consistência visual
     local sizeConstraint = Instance.new("UISizeConstraint")
     sizeConstraint.MinSize = Vector2.new(0, DESIGN.TabButtonHeight)
+    -- > MaxSize impede que o texto longo demais estique a UI lateral infinitamente
+    sizeConstraint.MaxSize = Vector2.new(parentWindow.TabContainer.AbsoluteSize.X - 10, 9000)
     sizeConstraint.Parent = button
 
-    -- > Layout horizontal que não reserva espaço se o ícone não existir
+    -- > Layout horizontal compacto
     local layout = Instance.new("UIListLayout")
     layout.FillDirection = Enum.FillDirection.Horizontal
-    layout.Padding = UDim.new(0, hasIcon and 8 or 0) -- > Zero padding se não houver ícone
+    layout.Padding = UDim.new(0, hasIcon and 6 or 0)
     layout.VerticalAlignment = Enum.VerticalAlignment.Center
     layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
     layout.Parent = button
 
+    -- > Padding interno mínimo para organização
     local padding = Instance.new("UIPadding")
-    padding.PaddingLeft = UDim.new(0, 10)
-    padding.PaddingRight = UDim.new(0, 10)
-    padding.PaddingTop = UDim.new(0, 4)
-    padding.PaddingBottom = UDim.new(0, 4)
+    padding.PaddingLeft = UDim.new(0, 8)
+    padding.PaddingRight = UDim.new(0, 8)
+    padding.PaddingTop = UDim.new(0, 2)
+    padding.PaddingBottom = UDim.new(0, 2)
     padding.Parent = button
 
-    -- > Renderização condicional do ícone
+    -- > Ícone (Ocupa espaço apenas se existir)
     if hasIcon then
         local iconImage = Instance.new("ImageLabel")
         iconImage.Name = "Icon"
         iconImage.BackgroundTransparency = 1
-        iconImage.Size = UDim2.new(0, 18, 0, 18)
+        iconImage.Size = UDim2.new(0, 16, 0, 16)
         iconImage.Image = "rbxassetid://" .. self.IconId
         iconImage.ZIndex = 4
         iconImage.Parent = button
         RegisterThemeItem("ComponentTextColor", iconImage, "ImageColor3")
     end
 
-    -- > Label de Texto Adaptável
+    -- > Label de Texto Compacta
     local textLabel = Instance.new("TextLabel")
     textLabel.Name = "Title"
     textLabel.BackgroundTransparency = 1
     textLabel.Text = self.Name
-    -- > Se não houver ícone, o texto ocupa 100% da largura útil
-    textLabel.Size = UDim2.new(1, hasIcon and -26 or 0, 0, 0) 
-    textLabel.AutomaticSize = Enum.AutomaticSize.Y
+    -- > Tamanho 0,0 com AutomaticSize garante que a label use o mínimo de espaço
+    textLabel.Size = UDim2.new(0, 0, 0, 0) 
+    textLabel.AutomaticSize = Enum.AutomaticSize.XY
     textLabel.TextColor3 = DESIGN.ComponentTextColor
     textLabel.Font = Enum.Font.Roboto
     textLabel.TextSize = 14
@@ -1584,19 +1587,18 @@ function Tab:_CreateTabButton(parentWindow)
     textLabel.Parent = button
     RegisterThemeItem("ComponentTextColor", textLabel, "TextColor3")
 
-    -- > Constraint para limitar a 2 linhas e evitar bugs visuais de overflow
+    -- > Força o texto a quebrar se atingir o limite da aba, permitindo até 2 linhas
     local textConstraint = Instance.new("UISizeConstraint")
-    textConstraint.MaxSize = Vector2.new(9000, 36) -- > Aproximadamente 2 linhas (14px + espaçamento)
+    textConstraint.MaxSize = Vector2.new(parentWindow.TabContainer.AbsoluteSize.X - (hasIcon and 40 or 20), 34)
     textConstraint.Parent = textLabel
 
     addRoundedCorners(button, DESIGN.CornerRadius)
 
-    -- > Feedback Visual (Hover)
+    -- > Feedback de Interação
     addHoverEffect(button, DESIGN.TabInactiveColor, DESIGN.ComponentHoverColor, function()
         return parentWindow.CurrentTab ~= self
     end)
 
-    -- > Eventos de interação
     table.insert(self._connections, button.MouseButton1Click:Connect(function()
         if not parentWindow.Blocked then
             parentWindow:SetActiveTab(self)
