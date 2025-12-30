@@ -5100,6 +5100,7 @@ function Tekscripts:CreateSection(tab: any, options: { Title: string?, Open: boo
     sectionContainer.BorderSizePixel = 0
     sectionContainer.ClipsDescendants = true
     sectionContainer.Parent = tab.Container
+
     -- > Registro de tema para consistência global
     if typeof(RegisterThemeItem) == "function" then
         RegisterThemeItem("ComponentBackground", sectionContainer, "BackgroundColor3")
@@ -5127,12 +5128,12 @@ function Tekscripts:CreateSection(tab: any, options: { Title: string?, Open: boo
     local titleLabel = Instance.new("TextLabel")
     titleLabel.Name = "Title"
     titleLabel.Font = Enum.Font.GothamBold
-    titleLabel.TextSize = 18 
+    titleLabel.TextSize = 16 -- > Reduzido para um visual mais clean
     titleLabel.TextColor3 = DESIGN.ComponentTextColor or Color3.fromRGB(230, 230, 230) 
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.BackgroundTransparency = 1
     titleLabel.Size = UDim2.new(1, -50, 0, 20) 
-    titleLabel.Position = UDim2.new(0, 10, 0.5, -10) 
+    titleLabel.Position = UDim2.new(0, 12, 0.5, -10) 
     titleLabel.ZIndex = 3
     titleLabel.Parent = titleFrame
     
@@ -5142,35 +5143,30 @@ function Tekscripts:CreateSection(tab: any, options: { Title: string?, Open: boo
 
     local titleLocaleConn = Tekscripts.Localization:_ApplyDynamicLocalization(titleLabel, options.Title or "")
 
-    -- > Indicador de seta (Feedback visual de Toggle)
+    -- > Indicador de seta (Feedback visual)
     local arrowLabel = Instance.new("TextLabel")
     arrowLabel.Name = "Arrow"
     arrowLabel.Text = "▼"
     arrowLabel.Font = Enum.Font.GothamBold
-    arrowLabel.TextSize = 14
+    arrowLabel.TextSize = 12
     arrowLabel.Visible = not fixed 
     arrowLabel.TextColor3 = DESIGN.ComponentTextColor or Color3.fromRGB(230, 230, 230) 
     arrowLabel.BackgroundTransparency = 1
     arrowLabel.Size = UDim2.new(0, 20, 0, 20)
-    arrowLabel.Position = UDim2.new(1, -25, 0.5, -10) 
+    arrowLabel.Position = UDim2.new(1, -30, 0.5, -10) 
     arrowLabel.ZIndex = 3
     arrowLabel.Parent = titleFrame
-    arrowLabel.TextYAlignment = Enum.TextYAlignment.Center
 
-    -- > Lógica de Hover (Intenção: Feedback de usabilidade)
+    -- > Sistema de Input e Hover (Clean Transitions)
     local function setHover(state)
         if fixed then return end 
         local targetTransparency = state and 0 or 0.2
-        local targetTextSize = state and 20 or 18
-        
-        TweenService:Create(titleFrame, TweenInfo.new(0.15), { BackgroundTransparency = targetTransparency }):Play()
-        TweenService:Create(titleLabel, TweenInfo.new(0.15), { TextSize = targetTextSize }):Play()
+        TweenService:Create(titleFrame, TweenInfo.new(0.2), { BackgroundTransparency = targetTransparency }):Play()
     end
 
     titleFrame.MouseEnter:Connect(function() setHover(true) end)
     titleFrame.MouseLeave:Connect(function() setHover(false) end)
 
-    -- > Sistema de Input (Anti-Scroll)
     local inputStartPos = Vector2.new(0,0)
     titleFrame.InputBegan:Connect(function(input)
         if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
@@ -5183,8 +5179,7 @@ function Tekscripts:CreateSection(tab: any, options: { Title: string?, Open: boo
             if fixed then return end
             local delta = (Vector2.new(input.Position.X, input.Position.Y) - Vector2.new(inputStartPos.X, inputStartPos.Y)).Magnitude
             if delta < dragThreshold then
-                -- O método Toggle será definido na publicApi abaixo
-                Tekscripts.SectionToggle(sectionContainer) -- Ou chamar publicApi:Toggle() após definir
+                publicApi:Toggle() -- > Chamada direta da API
             end
         end
     end)
@@ -5202,10 +5197,10 @@ function Tekscripts:CreateSection(tab: any, options: { Title: string?, Open: boo
     layout.Padding = UDim.new(0, 5)
     layout.Parent = contentContainer
 
-    -- > Container do estado vazio (Empty State / Placeholder)
+    -- > Container do estado vazio (Empty State Corrigido e Clean)
     local emptyStateFrame = Instance.new("Frame")
     emptyStateFrame.Name = "EmptyState"
-    emptyStateFrame.Size = UDim2.new(1, 0, 0, 100)
+    emptyStateFrame.Size = UDim2.new(1, 0, 0, 70) -- > Reduzido para ser menos intrusivo
     emptyStateFrame.BackgroundTransparency = 1
     emptyStateFrame.Visible = false
     emptyStateFrame.Parent = contentContainer
@@ -5213,28 +5208,28 @@ function Tekscripts:CreateSection(tab: any, options: { Title: string?, Open: boo
     local emptyLayout = Instance.new("UIListLayout")
     emptyLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
     emptyLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-    emptyLayout.Padding = UDim.new(0, 8)
+    emptyLayout.Padding = UDim.new(0, 4)
     emptyLayout.Parent = emptyStateFrame
 
     local emptyIcon = Instance.new("ImageLabel")
-    emptyIcon.Size = UDim2.new(0, 40, 0, 40)
+    emptyIcon.Size = UDim2.new(0, 24, 0, 24) -- > Icone menor e mais clean
     emptyIcon.BackgroundTransparency = 1
     emptyIcon.Image = emptyImageId
-    emptyIcon.ImageTransparency = 0.5
+    emptyIcon.ImageTransparency = 0.7
     emptyIcon.Parent = emptyStateFrame
 
     local emptyLabel = Instance.new("TextLabel")
-    emptyLabel.Size = UDim2.new(1, 0, 0, 20)
+    emptyLabel.Size = UDim2.new(1, 0, 0, 18)
     emptyLabel.BackgroundTransparency = 1
     emptyLabel.Font = Enum.Font.Gotham
-    emptyLabel.TextSize = 14
-    emptyLabel.TextTransparency = 0.6 -- > CORREÇÃO: Removido ImageTransparency (Inválido para TextLabel)
-    emptyLabel.TextColor3 = DESIGN.ComponentTextColor or Color3.fromRGB(230, 230, 230)
+    emptyLabel.TextSize = 13
+    emptyLabel.TextTransparency = 0.6 -- > CORREÇÃO: Usando TextTransparency (Correto para TextLabel)
+    emptyLabel.TextColor3 = DESIGN.ComponentTextColor or Color3.fromRGB(200, 200, 200)
     emptyLabel.Parent = emptyStateFrame
     
     local emptyLocaleConn = Tekscripts.Localization:_ApplyDynamicLocalization(emptyLabel, emptyText)
 
-    -- > Overlay de bloqueio (Segurança/Estado)
+    -- > Overlay de bloqueio
     local blockOverlay = Instance.new("Frame")
     blockOverlay.Name = "Blocker"
     blockOverlay.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
@@ -5250,11 +5245,12 @@ function Tekscripts:CreateSection(tab: any, options: { Title: string?, Open: boo
     blockLabel.BackgroundTransparency = 1
     blockLabel.Font = Enum.Font.GothamBold
     blockLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    blockLabel.TextSize = 20
+    blockLabel.TextSize = 18
     blockLabel.Parent = blockOverlay
 
-    -- > Lógica de Verificação de "Nada encontrado"
+    -- > Lógica de Verificação de Cache/Conteúdo
     local function checkEmptyState()
+        -- > Intenção: Ignorar frames internos de sistema ao contar componentes
         local componentCount = 0
         for _, child in ipairs(contentContainer:GetChildren()) do
             if child:IsA("GuiObject") and child ~= emptyStateFrame then
@@ -5272,8 +5268,9 @@ function Tekscripts:CreateSection(tab: any, options: { Title: string?, Open: boo
         local contentHeight = layout.AbsoluteContentSize.Y
         local isActuallyOpen = fixed or open 
         
+        -- > Ajuste dinâmico se estiver vazio
         if isActuallyOpen and emptyStateFrame.Visible then
-            contentHeight = math.max(contentHeight, 110)
+            contentHeight = math.max(contentHeight, 80)
         end
 
         local targetHeight = isActuallyOpen and (titleHeight + contentHeight + contentPadding) or minClosedHeight
@@ -5286,13 +5283,14 @@ function Tekscripts:CreateSection(tab: any, options: { Title: string?, Open: boo
         end
     end
 
-    -- > Conexões de Cache e Redesenho
+    -- > Conexões de Ciclo de Vida (Cache de UI)
     local absConn = layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateHeight)
     local addConn = contentContainer.ChildAdded:Connect(updateHeight)
     local remConn = contentContainer.ChildRemoved:Connect(updateHeight)
 
-    -- > API Pública
-    local publicApi = {
+    -- > API Pública do Componente
+    local publicApi = {} -- Definido antes para as funções internas
+    publicApi = {
         _instance = sectionContainer,
         _content = contentContainer,
         Components = {},
@@ -5327,10 +5325,10 @@ function Tekscripts:CreateSection(tab: any, options: { Title: string?, Open: boo
     end
 
     function publicApi:Destroy()
-        -- > Intenção: Limpeza total de memória e conexões (Persistence Hygiene)
+        -- > Intenção: Limpeza profunda para evitar vazamento de memória (GC)
         if self._titleLocaleConn then self._titleLocaleConn:Disconnect() end
         if self._emptyLocaleConn then self._emptyLocaleConn:Disconnect() end
-        for _, conn in ipairs(self._conns) do conn:Disconnect() end
+        for _, conn in ipairs(self._conns) do if conn then conn:Disconnect() end end
         
         for _, comp in ipairs(self.Components) do
             if comp.Destroy then comp:Destroy() end
@@ -5338,7 +5336,7 @@ function Tekscripts:CreateSection(tab: any, options: { Title: string?, Open: boo
         sectionContainer:Destroy()
     end
 
-    -- > Inicialização
+    -- > Inicialização e Registro na Tab
     table.insert(tab.Components, publicApi)
     task.defer(updateHeight)
 
