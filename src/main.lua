@@ -8,10 +8,10 @@ local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local localPlayer = Players.LocalPlayer
--- > local IconLibrary = loadstring(game:HttpGet("https://raw.githubusercontent.com/TekScripts/TekUix/refs/heads/main/src/IconLibrary.lua"))()
+-- >
+ local IconLibrary = loadstring(game:HttpGet("https://raw.githubusercontent.com/TekScripts/TekUix/refs/heads/main/src/IconLibrary.lua"))()
 
--- > 
-local IconLibrary = loadstring(game:HttpGet("http://127.0.0.1:8200/main/IconLibrary.lua"))()
+-- > local IconLibrary = loadstring(game:HttpGet("http://127.0.0.1:8200/main/IconLibrary.lua"))()
 
 local FALLBACK_ICON_NAME = "mouse-pointer" 
 
