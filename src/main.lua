@@ -8,8 +8,8 @@ local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local localPlayer = Players.LocalPlayer
--- >
- local IconLibrary = loadstring(game:HttpGet("https://raw.githubusercontent.com/TekScripts/TekUix/refs/heads/main/src/IconLibrary.lua"))()
+-- > 
+local IconLibrary = loadstring(game:HttpGet("https://raw.githubusercontent.com/TekScripts/TekUix/refs/heads/main/src/IconLibrary.lua"))()
 
 -- > local IconLibrary = loadstring(game:HttpGet("http://127.0.0.1:8200/main/IconLibrary.lua"))()
 
@@ -5074,7 +5074,7 @@ function Tekscripts:CreateSlider(tab: any, options: {
 end
 
 function Tekscripts:CreateSection(tab: any, options: { Title: string?, Open: boolean?, Fixed: boolean?, EmptyMessage: string?, EmptyImage: string? })
-    -- > Validação inicial para garantir persistência do objeto pai
+    -- > Verificação de integridade do objeto pai para persistência de dados
     assert(type(tab) == "table" and tab.Container, "Invalid Tab object provided to CreateSection")
 
     local DESIGN = DESIGN or {}
@@ -5085,33 +5085,124 @@ function Tekscripts:CreateSection(tab: any, options: { Title: string?, Open: boo
     local TweenService = game:GetService("TweenService")
     local UserInputService = game:GetService("UserInputService")
 
-    -- > Configurações de estado e persistência de dados
+    -- > Configurações de estado e persistência de cache visual
     local open = options.Open ~= false
     local fixed = options.Fixed == true
+    local dragThreshold = 5
     local emptyText = options.EmptyMessage or "Parece que não tem nada aqui"
     local emptyImageId = options.EmptyImage or "rbxassetid://10309244524"
 
-    -- > Criação do Container Principal (Consistência de Layout)
+    -- > Container principal da section (Gerenciamento de Clipping)
     local sectionContainer = Instance.new("Frame")
-    sectionContainer.Name = "Section_" .. (options.Title or "Untitled")
-    sectionContainer.Size = UDim2.new(1, 0, 0, minClosedHeight)
-    sectionContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 35) -- Exemplo de cor base
+    sectionContainer.Name = "Section_" .. (options.Title or "Component")
+    sectionContainer.BackgroundColor3 = DESIGN.ComponentBackground or Color3.fromRGB(30, 30, 30)
+    sectionContainer.BackgroundTransparency = DESIGN.TabContainerTransparency or 0
+    sectionContainer.BorderSizePixel = 0
     sectionContainer.ClipsDescendants = true
     sectionContainer.Parent = tab.Container
+    -- > Registro de tema para consistência global
+    if typeof(RegisterThemeItem) == "function" then
+        RegisterThemeItem("ComponentBackground", sectionContainer, "BackgroundColor3")
+    end
 
+    local uicorner = Instance.new("UICorner")
+    uicorner.CornerRadius = UDim.new(0, 8)
+    uicorner.Parent = sectionContainer
+
+    -- > Frame do título (Topbar Interativa)
+    local titleFrame = Instance.new("Frame")
+    titleFrame.Name = "Topbar"
+    titleFrame.BackgroundColor3 = DESIGN.ComponentBackground or Color3.fromRGB(40, 40, 40)
+    titleFrame.BackgroundTransparency = 0.2 
+    titleFrame.Size = UDim2.new(1, 0, 0, titleHeight) 
+    titleFrame.ZIndex = 2
+    titleFrame.Active = true
+    titleFrame.Parent = sectionContainer
+
+    local titleCorner = Instance.new("UICorner")
+    titleCorner.CornerRadius = UDim.new(0, 8)
+    titleCorner.Parent = titleFrame
+
+    -- > Título com Localização Dinâmica
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Name = "Title"
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextSize = 18 
+    titleLabel.TextColor3 = DESIGN.ComponentTextColor or Color3.fromRGB(230, 230, 230) 
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Size = UDim2.new(1, -50, 0, 20) 
+    titleLabel.Position = UDim2.new(0, 10, 0.5, -10) 
+    titleLabel.ZIndex = 3
+    titleLabel.Parent = titleFrame
+    
+    if typeof(RegisterThemeItem) == "function" then
+        RegisterThemeItem("ComponentTextColor", titleLabel, "TextColor3")
+    end
+
+    local titleLocaleConn = Tekscripts.Localization:_ApplyDynamicLocalization(titleLabel, options.Title or "")
+
+    -- > Indicador de seta (Feedback visual de Toggle)
+    local arrowLabel = Instance.new("TextLabel")
+    arrowLabel.Name = "Arrow"
+    arrowLabel.Text = "▼"
+    arrowLabel.Font = Enum.Font.GothamBold
+    arrowLabel.TextSize = 14
+    arrowLabel.Visible = not fixed 
+    arrowLabel.TextColor3 = DESIGN.ComponentTextColor or Color3.fromRGB(230, 230, 230) 
+    arrowLabel.BackgroundTransparency = 1
+    arrowLabel.Size = UDim2.new(0, 20, 0, 20)
+    arrowLabel.Position = UDim2.new(1, -25, 0.5, -10) 
+    arrowLabel.ZIndex = 3
+    arrowLabel.Parent = titleFrame
+    arrowLabel.TextYAlignment = Enum.TextYAlignment.Center
+
+    -- > Lógica de Hover (Intenção: Feedback de usabilidade)
+    local function setHover(state)
+        if fixed then return end 
+        local targetTransparency = state and 0 or 0.2
+        local targetTextSize = state and 20 or 18
+        
+        TweenService:Create(titleFrame, TweenInfo.new(0.15), { BackgroundTransparency = targetTransparency }):Play()
+        TweenService:Create(titleLabel, TweenInfo.new(0.15), { TextSize = targetTextSize }):Play()
+    end
+
+    titleFrame.MouseEnter:Connect(function() setHover(true) end)
+    titleFrame.MouseLeave:Connect(function() setHover(false) end)
+
+    -- > Sistema de Input (Anti-Scroll)
+    local inputStartPos = Vector2.new(0,0)
+    titleFrame.InputBegan:Connect(function(input)
+        if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+            inputStartPos = input.Position
+        end
+    end)
+
+    titleFrame.InputEnded:Connect(function(input)
+        if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+            if fixed then return end
+            local delta = (Vector2.new(input.Position.X, input.Position.Y) - Vector2.new(inputStartPos.X, inputStartPos.Y)).Magnitude
+            if delta < dragThreshold then
+                -- O método Toggle será definido na publicApi abaixo
+                Tekscripts.SectionToggle(sectionContainer) -- Ou chamar publicApi:Toggle() após definir
+            end
+        end
+    end)
+
+    -- > Container de conteúdo
     local contentContainer = Instance.new("Frame")
     contentContainer.Name = "Content"
-    contentContainer.Position = UDim2.new(0, 0, 0, titleHeight)
-    contentContainer.Size = UDim2.new(1, 0, 0, 0)
     contentContainer.BackgroundTransparency = 1
+    contentContainer.Size = UDim2.new(1, -20, 0, 0)
+    contentContainer.Position = UDim2.new(0, 10, 0, titleHeight)
     contentContainer.Parent = sectionContainer
-
+    
     local layout = Instance.new("UIListLayout")
     layout.SortOrder = Enum.SortOrder.LayoutOrder
     layout.Padding = UDim.new(0, 5)
     layout.Parent = contentContainer
 
-    -- > Container do estado vazio (Placeholder/Empty State)
+    -- > Container do estado vazio (Empty State / Placeholder)
     local emptyStateFrame = Instance.new("Frame")
     emptyStateFrame.Name = "EmptyState"
     emptyStateFrame.Size = UDim2.new(1, 0, 0, 100)
@@ -5130,7 +5221,6 @@ function Tekscripts:CreateSection(tab: any, options: { Title: string?, Open: boo
     emptyIcon.BackgroundTransparency = 1
     emptyIcon.Image = emptyImageId
     emptyIcon.ImageTransparency = 0.5
-    -- RegisterThemeItem("ComponentTextColor", emptyIcon, "ImageColor3") -- Descomente se sua lib usar
     emptyIcon.Parent = emptyStateFrame
 
     local emptyLabel = Instance.new("TextLabel")
@@ -5138,46 +5228,50 @@ function Tekscripts:CreateSection(tab: any, options: { Title: string?, Open: boo
     emptyLabel.BackgroundTransparency = 1
     emptyLabel.Font = Enum.Font.Gotham
     emptyLabel.TextSize = 14
-    emptyLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-    emptyLabel.TextTransparency = 0.6 -- > CORREÇÃO: Usar TextTransparency em vez de ImageTransparency
-    emptyLabel.Text = emptyText
-    -- RegisterThemeItem("ComponentTextColor", emptyLabel, "TextColor3") 
+    emptyLabel.TextTransparency = 0.6 -- > CORREÇÃO: Removido ImageTransparency (Inválido para TextLabel)
+    emptyLabel.TextColor3 = DESIGN.ComponentTextColor or Color3.fromRGB(230, 230, 230)
     emptyLabel.Parent = emptyStateFrame
     
-    -- > Aplicação de Localização Dinâmica
-    local emptyLocaleConn = nil
-    if Tekscripts.Localization then
-        emptyLocaleConn = Tekscripts.Localization:_ApplyDynamicLocalization(emptyLabel, emptyText)
-    end
+    local emptyLocaleConn = Tekscripts.Localization:_ApplyDynamicLocalization(emptyLabel, emptyText)
 
-    -- > Lógica de verificação de conteúdo (Cache/Content Check)
+    -- > Overlay de bloqueio (Segurança/Estado)
+    local blockOverlay = Instance.new("Frame")
+    blockOverlay.Name = "Blocker"
+    blockOverlay.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+    blockOverlay.BackgroundTransparency = 0.5
+    blockOverlay.Position = UDim2.new(0, 0, 0, titleHeight)
+    blockOverlay.Size = UDim2.new(1, 0, 1, -titleHeight)
+    blockOverlay.Visible = false
+    blockOverlay.ZIndex = 10
+    blockOverlay.Parent = sectionContainer
+
+    local blockLabel = Instance.new("TextLabel")
+    blockLabel.Size = UDim2.new(1, 0, 1, 0)
+    blockLabel.BackgroundTransparency = 1
+    blockLabel.Font = Enum.Font.GothamBold
+    blockLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    blockLabel.TextSize = 20
+    blockLabel.Parent = blockOverlay
+
+    -- > Lógica de Verificação de "Nada encontrado"
     local function checkEmptyState()
-        -- > Intenção: Contar apenas objetos visíveis que não sejam o próprio placeholder
         local componentCount = 0
         for _, child in ipairs(contentContainer:GetChildren()) do
             if child:IsA("GuiObject") and child ~= emptyStateFrame then
                 componentCount += 1
             end
         end
-
         local isActuallyEmpty = (componentCount == 0)
-        local shouldShow = isActuallyEmpty and (open or fixed)
-        
-        emptyStateFrame.Visible = shouldShow
-        
-        if shouldShow then
-            emptyStateFrame.LayoutOrder = 99999 -- > Garante que o placeholder fique no fundo do cache visual
-        end
+        emptyStateFrame.Visible = isActuallyEmpty and (open or fixed)
+        if emptyStateFrame.Visible then emptyStateFrame.LayoutOrder = 99999 end
     end
 
-    -- > Atualização de Altura Dinâmica
+    -- > Atualização de Altura (Consistência de Layout)
     local function updateHeight()
-        checkEmptyState() 
-        
+        checkEmptyState()
         local contentHeight = layout.AbsoluteContentSize.Y
         local isActuallyOpen = fixed or open 
         
-        -- > Se aberto e vazio, define altura para mostrar a mensagem
         if isActuallyOpen and emptyStateFrame.Visible then
             contentHeight = math.max(contentHeight, 110)
         end
@@ -5186,38 +5280,27 @@ function Tekscripts:CreateSection(tab: any, options: { Title: string?, Open: boo
         local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
         
         TweenService:Create(sectionContainer, tweenInfo, { Size = UDim2.new(1, 0, 0, targetHeight) }):Play()
+        
+        if not fixed then
+            TweenService:Create(arrowLabel, tweenInfo, { Rotation = open and 180 or 0 }):Play()
+        end
     end
 
-    -- > Listeners para manter consistência de UI
-    local absSizeConn = layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateHeight)
-    local childAddedConn = contentContainer.ChildAdded:Connect(updateHeight)
-    local childRemovedConn = contentContainer.ChildRemoved:Connect(updateHeight)
+    -- > Conexões de Cache e Redesenho
+    local absConn = layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateHeight)
+    local addConn = contentContainer.ChildAdded:Connect(updateHeight)
+    local remConn = contentContainer.ChildRemoved:Connect(updateHeight)
 
-    -- > API Pública do Componente
+    -- > API Pública
     local publicApi = {
         _instance = sectionContainer,
         _content = contentContainer,
         Components = {},
+        _blocked = false,
+        _titleLocaleConn = titleLocaleConn,
         _emptyLocaleConn = emptyLocaleConn,
-        _connections = { absSizeConn, childAddedConn, childRemovedConn }
+        _conns = { absConn, addConn, remConn }
     }
-
-    -- > API para Editar o Empty State dinamicamente
-    function publicApi:SetEmptyMessage(text)
-        -- > Intenção: Atualizar texto com suporte a hot-reload de tradução
-        if self._emptyLocaleConn then self._emptyLocaleConn:Disconnect() end
-        if Tekscripts.Localization then
-            self._emptyLocaleConn = Tekscripts.Localization:_ApplyDynamicLocalization(emptyLabel, text or "")
-        else
-            emptyLabel.Text = text or ""
-        end
-        updateHeight()
-    end
-
-    function publicApi:SetEmptyImage(imageId)
-        -- > Intenção: Persistir novo ícone visual para o estado vazio
-        emptyIcon.Image = imageId or ""
-    end
 
     function publicApi:AddComponent(...)
         local components = { ... }
@@ -5230,33 +5313,36 @@ function Tekscripts:CreateSection(tab: any, options: { Title: string?, Open: boo
         return publicApi 
     end
 
-    function publicApi:Destroy()
-        -- > Intenção: Limpeza profunda para evitar memory leaks
-        if self._emptyLocaleConn then self._emptyLocaleConn:Disconnect() end
-        
-        for _, conn in ipairs(self._connections) do
-            if conn then conn:Disconnect() end
-        end
+    function publicApi:Toggle()
+        if fixed then return end
+        open = not open
+        updateHeight()
+    end
 
+    function publicApi:Block(state, message)
+        self._blocked = state
+        blockOverlay.Visible = state
+        if message then blockLabel.Text = message end
+        updateHeight()
+    end
+
+    function publicApi:Destroy()
+        -- > Intenção: Limpeza total de memória e conexões (Persistence Hygiene)
+        if self._titleLocaleConn then self._titleLocaleConn:Disconnect() end
+        if self._emptyLocaleConn then self._emptyLocaleConn:Disconnect() end
+        for _, conn in ipairs(self._conns) do conn:Disconnect() end
+        
         for _, comp in ipairs(self.Components) do
             if comp.Destroy then comp:Destroy() end
         end
-        
         sectionContainer:Destroy()
-        
-        -- Limpa referências da tabela pai
-        for i, comp in ipairs(tab.Components) do
-            if comp == publicApi then
-                table.remove(tab.Components, i)
-                break
-            end
-        end
     end
 
+    -- > Inicialização
     table.insert(tab.Components, publicApi)
-    updateHeight() -- > Inicialização do estado visual
+    task.defer(updateHeight)
+
     return publicApi
 end
-
 
 return Tekscripts
