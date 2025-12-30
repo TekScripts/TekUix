@@ -8,7 +8,11 @@ local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local localPlayer = Players.LocalPlayer
-local IconLibrary = loadstring(game:HttpGet("https://raw.githubusercontent.com/TekScripts/TekUix/refs/heads/main/src/IconLibrary.lua"))()
+-- > local IconLibrary = loadstring(game:HttpGet("https://raw.githubusercontent.com/TekScripts/TekUix/refs/heads/main/src/IconLibrary.lua"))()
+
+-- > 
+local IconLibrary = loadstring(game:HttpGet("http://127.0.0.1:8200/main/IconLibrary.lua"))()
+
 local FALLBACK_ICON_NAME = "mouse-pointer" 
 
 
@@ -5070,6 +5074,7 @@ function Tekscripts:CreateSlider(tab: any, options: {
 end
 
 function Tekscripts:CreateSection(tab: any, options: { Title: string?, Open: boolean?, Fixed: boolean?, EmptyMessage: string?, EmptyImage: string? })
+    -- > Validação inicial para garantir persistência do objeto pai
     assert(type(tab) == "table" and tab.Container, "Invalid Tab object provided to CreateSection")
 
     local DESIGN = DESIGN or {}
@@ -5080,17 +5085,33 @@ function Tekscripts:CreateSection(tab: any, options: { Title: string?, Open: boo
     local TweenService = game:GetService("TweenService")
     local UserInputService = game:GetService("UserInputService")
 
-    -- > Configurações de estado e persistência de dados do "Empty State"
+    -- > Configurações de estado e persistência de dados
     local open = options.Open ~= false
     local fixed = options.Fixed == true
-    local dragThreshold = 5
     local emptyText = options.EmptyMessage or "Parece que não tem nada aqui"
-    local emptyImageId = options.EmptyImage or "rbxassetid://10309244524" -- > ID de exemplo (ícone de busca/vazio)
+    local emptyImageId = options.EmptyImage or "rbxassetid://10309244524"
 
-    -- [Trecho de criação do sectionContainer, titleFrame e labels omitido para brevidade, permanece igual ao seu]
-    -- ... (Código original do sectionContainer até o contentContainer)
+    -- > Criação do Container Principal (Consistência de Layout)
+    local sectionContainer = Instance.new("Frame")
+    sectionContainer.Name = "Section_" .. (options.Title or "Untitled")
+    sectionContainer.Size = UDim2.new(1, 0, 0, minClosedHeight)
+    sectionContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 35) -- Exemplo de cor base
+    sectionContainer.ClipsDescendants = true
+    sectionContainer.Parent = tab.Container
 
-    -- > Container do estado vazio (Placeholder)
+    local contentContainer = Instance.new("Frame")
+    contentContainer.Name = "Content"
+    contentContainer.Position = UDim2.new(0, 0, 0, titleHeight)
+    contentContainer.Size = UDim2.new(1, 0, 0, 0)
+    contentContainer.BackgroundTransparency = 1
+    contentContainer.Parent = sectionContainer
+
+    local layout = Instance.new("UIListLayout")
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Padding = UDim.new(0, 5)
+    layout.Parent = contentContainer
+
+    -- > Container do estado vazio (Placeholder/Empty State)
     local emptyStateFrame = Instance.new("Frame")
     emptyStateFrame.Name = "EmptyState"
     emptyStateFrame.Size = UDim2.new(1, 0, 0, 100)
@@ -5109,7 +5130,7 @@ function Tekscripts:CreateSection(tab: any, options: { Title: string?, Open: boo
     emptyIcon.BackgroundTransparency = 1
     emptyIcon.Image = emptyImageId
     emptyIcon.ImageTransparency = 0.5
-    RegisterThemeItem("ComponentTextColor", emptyIcon, "ImageColor3")
+    -- RegisterThemeItem("ComponentTextColor", emptyIcon, "ImageColor3") -- Descomente se sua lib usar
     emptyIcon.Parent = emptyStateFrame
 
     local emptyLabel = Instance.new("TextLabel")
@@ -5117,16 +5138,21 @@ function Tekscripts:CreateSection(tab: any, options: { Title: string?, Open: boo
     emptyLabel.BackgroundTransparency = 1
     emptyLabel.Font = Enum.Font.Gotham
     emptyLabel.TextSize = 14
-    emptyLabel.ImageTransparency = 0.6
-    RegisterThemeItem("ComponentTextColor", emptyLabel, "TextColor3")
+    emptyLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    emptyLabel.TextTransparency = 0.6 -- > CORREÇÃO: Usar TextTransparency em vez de ImageTransparency
+    emptyLabel.Text = emptyText
+    -- RegisterThemeItem("ComponentTextColor", emptyLabel, "TextColor3") 
     emptyLabel.Parent = emptyStateFrame
     
-    -- > Conexão de localização para a mensagem de vazio
-    local emptyLocaleConn = Tekscripts.Localization:_ApplyDynamicLocalization(emptyLabel, emptyText)
+    -- > Aplicação de Localização Dinâmica
+    local emptyLocaleConn = nil
+    if Tekscripts.Localization then
+        emptyLocaleConn = Tekscripts.Localization:_ApplyDynamicLocalization(emptyLabel, emptyText)
+    end
 
-    -- > Lógica de verificação de conteúdo (Cache/Persistence Check)
+    -- > Lógica de verificação de conteúdo (Cache/Content Check)
     local function checkEmptyState()
-        -- > Ignora o próprio emptyStateFrame e o UIListLayout
+        -- > Intenção: Contar apenas objetos visíveis que não sejam o próprio placeholder
         local componentCount = 0
         for _, child in ipairs(contentContainer:GetChildren()) do
             if child:IsA("GuiObject") and child ~= emptyStateFrame then
@@ -5139,20 +5165,19 @@ function Tekscripts:CreateSection(tab: any, options: { Title: string?, Open: boo
         
         emptyStateFrame.Visible = shouldShow
         
-        -- > Se estiver vazio, forçamos uma altura mínima para o placeholder aparecer bem
         if shouldShow then
-            emptyStateFrame.LayoutOrder = 999 -- > Sempre no fim
+            emptyStateFrame.LayoutOrder = 99999 -- > Garante que o placeholder fique no fundo do cache visual
         end
     end
 
-    -- > Atualização de Altura Dinâmica (Modificada para considerar o Empty State)
+    -- > Atualização de Altura Dinâmica
     local function updateHeight()
-        checkEmptyState() -- > Verifica antes de calcular altura
+        checkEmptyState() 
         
         local contentHeight = layout.AbsoluteContentSize.Y
         local isActuallyOpen = fixed or open 
         
-        -- > Garante consistência: se aberto e vazio, define altura mínima para o aviso
+        -- > Se aberto e vazio, define altura para mostrar a mensagem
         if isActuallyOpen and emptyStateFrame.Visible then
             contentHeight = math.max(contentHeight, 110)
         end
@@ -5161,32 +5186,36 @@ function Tekscripts:CreateSection(tab: any, options: { Title: string?, Open: boo
         local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
         
         TweenService:Create(sectionContainer, tweenInfo, { Size = UDim2.new(1, 0, 0, targetHeight) }):Play()
-        
-        -- ... (Restante da lógica de rotação da seta e overlay)
     end
 
-    layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateHeight)
-    contentContainer.ChildAdded:Connect(updateHeight)
-    contentContainer.ChildRemoved:Connect(updateHeight)
+    -- > Listeners para manter consistência de UI
+    local absSizeConn = layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateHeight)
+    local childAddedConn = contentContainer.ChildAdded:Connect(updateHeight)
+    local childRemovedConn = contentContainer.ChildRemoved:Connect(updateHeight)
 
     -- > API Pública do Componente
     local publicApi = {
         _instance = sectionContainer,
         _content = contentContainer,
         Components = {},
-        _emptyLocaleConn = emptyLocaleConn
+        _emptyLocaleConn = emptyLocaleConn,
+        _connections = { absSizeConn, childAddedConn, childRemovedConn }
     }
 
     -- > API para Editar o Empty State dinamicamente
     function publicApi:SetEmptyMessage(text)
-        -- > Intenção: Atualizar a mensagem de "nada encontrado" com suporte a tradução
+        -- > Intenção: Atualizar texto com suporte a hot-reload de tradução
         if self._emptyLocaleConn then self._emptyLocaleConn:Disconnect() end
-        self._emptyLocaleConn = Tekscripts.Localization:_ApplyDynamicLocalization(emptyLabel, text or "")
+        if Tekscripts.Localization then
+            self._emptyLocaleConn = Tekscripts.Localization:_ApplyDynamicLocalization(emptyLabel, text or "")
+        else
+            emptyLabel.Text = text or ""
+        end
         updateHeight()
     end
 
     function publicApi:SetEmptyImage(imageId)
-        -- > Intenção: Mudar o ícone do estado vazio
+        -- > Intenção: Persistir novo ícone visual para o estado vazio
         emptyIcon.Image = imageId or ""
     end
 
@@ -5198,25 +5227,36 @@ function Tekscripts:CreateSection(tab: any, options: { Title: string?, Open: boo
                 table.insert(publicApi.Components, component)
             end
         end
-        -- > updateHeight será chamado automaticamente pelo ChildAdded
         return publicApi 
     end
 
-    -- [Outros métodos da API: Open, Close, Toggle, Block, Destroy permanecem iguais]
-
     function publicApi:Destroy()
-        if self._titleLocaleConn then self._titleLocaleConn:Disconnect() end
-        if self._blockLocaleConn then self._blockLocaleConn:Disconnect() end
-        if self._emptyLocaleConn then self._emptyLocaleConn:Disconnect() end -- > Limpeza extra
+        -- > Intenção: Limpeza profunda para evitar memory leaks
+        if self._emptyLocaleConn then self._emptyLocaleConn:Disconnect() end
         
-        for _, comp in ipairs(publicApi.Components) do
+        for _, conn in ipairs(self._connections) do
+            if conn then conn:Disconnect() end
+        end
+
+        for _, comp in ipairs(self.Components) do
             if comp.Destroy then comp:Destroy() end
         end
+        
         sectionContainer:Destroy()
+        
+        -- Limpa referências da tabela pai
+        for i, comp in ipairs(tab.Components) do
+            if comp == publicApi then
+                table.remove(tab.Components, i)
+                break
+            end
+        end
     end
 
     table.insert(tab.Components, publicApi)
+    updateHeight() -- > Inicialização do estado visual
     return publicApi
 end
+
 
 return Tekscripts
